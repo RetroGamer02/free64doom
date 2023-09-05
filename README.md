@@ -92,8 +92,11 @@ START :: ESCAPE key
 L + R :: enable/disable debug output and GOD MODE
 
 Special Thanks
-eightbit - Starting the Free64Doom Project
-Immorpher - Figureing out how to convert the music
+
+eightbit - Starting the Free64Doom Project.
+
+Immorpher - Figuring out how to convert the music.
+
 jnmartin who made the 64doom engine this project would not be possible without it!
 
 
