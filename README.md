@@ -1,10 +1,12 @@
 ---------------
--64DOOM README-
+-Free64DOOM README-
 ---------------
 
 
-Updated 2023/05/14
+Updated 2023/09/05
 
+
+The Freedoom IWAD was made thanks to [the Freedoom team](https://freedoom.github.io), a [free and open-source](https://github.com/freedoom/freedoom/blob/master/COPYING.adoc) game based on the [Doom engine](https://doomwiki.org/wiki/Doom_engine).
 
 -------------------------
 -git repository contents-
@@ -88,6 +90,11 @@ B :: use (open doors, flip switches)
 START :: ESCAPE key
 
 L + R :: enable/disable debug output and GOD MODE
+
+Special Thanks
+eightbit - Starting the Free64Doom Project
+Immorpher - Figureing out how to convert the music
+jnmartin who made the 64doom engine this project would not be possible without it!
 
 
 Enjoy.
