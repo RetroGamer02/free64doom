@@ -33,8 +33,8 @@
 // NOT called by W_Ticker. Fixme.
 void
 P_SetupLevel
-( unsigned int		episode,
-  unsigned int		map,
+( int		episode,
+  int		map,
   int		playermask,
   skill_t	skill);
 

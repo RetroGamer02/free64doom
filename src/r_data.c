@@ -189,11 +189,9 @@ R_DrawColumnInCache
     int		count;
     int		position;
     byte*	source;
+    byte*	dest;
 
-    // -Werror set but not used
-    //byte*	dest;
-    // -Werror set but not used
-    //dest = (byte *)cache + 3;
+    dest = (byte *)cache + 3;
 
     while (patch->topdelta != 0xff)
     {
@@ -211,7 +209,7 @@ R_DrawColumnInCache
 	    count = cacheheight - position;
 
 	if (count > 0)
-	    memcpy (cache + position, source, count);
+	    D_memcpy (cache + position, source, count);
 
 	patch = (column_t *)(  (byte *)patch + patch->length + 4);
     }
@@ -320,7 +318,7 @@ void R_GenerateLookup (int texnum)
     // Fill in the lump / offset, so columns
     //  with only a single patch are all done.
     patchcount = (byte *)alloca (texture->width);
-    memset (patchcount, 0, texture->width);
+    D_memset (patchcount, 0, texture->width);
     patch = texture->patches;
 
     for (i=0 , patch = texture->patches;
@@ -451,10 +449,8 @@ void R_InitTextures (void)
     int			totalwidth;
     int			nummappatches;
     int			offset;
-#ifdef RANGECHECK
     int			maxoff;
     int			maxoff2;
-#endif
     int			numtextures1;
     int			numtextures2;
 
@@ -487,9 +483,7 @@ void R_InitTextures (void)
     //  TEXTURE1 for shareware, plus TEXTURE2 for commercial.
     maptex = maptex1 = W_CacheLumpName ("TEXTURE1", PU_STATIC);
     numtextures1 = LONG(*maptex);
-#ifdef RANGECHECK
     maxoff = W_LumpLength (W_GetNumForName ("TEXTURE1"));
-#endif
 
     directory = maptex+1;
 
@@ -497,17 +491,13 @@ void R_InitTextures (void)
     {
 	maptex2 = W_CacheLumpName ("TEXTURE2", PU_STATIC);
 	numtextures2 = LONG(*maptex2);
-#ifdef RANGECHECK
 	maxoff2 = W_LumpLength (W_GetNumForName ("TEXTURE2"));
-#endif
     }
     else
     {
 	maptex2 = NULL;
 	numtextures2 = 0;
-#ifdef RANGECHECK
 	maxoff2 = 0;
-#endif
     }
     numtextures = numtextures1 + numtextures2;
     textures = Z_Malloc (numtextures*4, PU_STATIC, 0);
@@ -529,9 +519,7 @@ void R_InitTextures (void)
 		{
 			// Start looking in second texture file.
 			maptex = maptex2;
-#ifdef RANGECHECK
 			maxoff = maxoff2;
-#endif            
 			directory = maptex+1;
 		}
 
@@ -550,13 +538,13 @@ void R_InitTextures (void)
 				  + sizeof(texpatch_t)*(SHORT(mtexture->patchcount)-1),
 				  PU_STATIC, 0);
 
-		memset(texture, 0, sizeof(texture_t) + sizeof(texpatch_t)*(SHORT(mtexture->patchcount)-1));
+		D_memset(texture, 0, sizeof(texture_t) + sizeof(texpatch_t)*(SHORT(mtexture->patchcount)-1));
 
 		texture->width = SHORT(mtexture->width);
 		texture->height = SHORT(mtexture->height);
 		texture->patchcount = SHORT(mtexture->patchcount);
 
-		memcpy(texture->name, mtexture->name, 8/*sizeof(texture_t->name)*/);
+		D_memcpy(texture->name, mtexture->name, 8/*sizeof(texture_t->name)*/);
 
 		mpatch = &mtexture->patches[0];
 		patch = &texture->patches[0];
@@ -707,7 +695,7 @@ int R_FlatNumForName (char* name)
     {
     char	namet[9];
 	namet[8] = 0;
-	memcpy (namet, name,8);
+	D_memcpy (namet, name,8);
 	I_Error("R_FlatNumForName: %s not found", namet);
     }
 #endif
@@ -795,7 +783,7 @@ void R_PrecacheLevel (void)
 
     // Precache flats.
     flatpresent = alloca(numflats);
-    memset (flatpresent,0,numflats);
+    D_memset (flatpresent,0,numflats);
 
     for (i=0 ; i<numsectors ; i++)
     {
@@ -817,7 +805,7 @@ void R_PrecacheLevel (void)
 
     // Precache textures.
     texturepresent = alloca(numtextures);
-    memset (texturepresent,0, numtextures);
+    D_memset (texturepresent,0, numtextures);
 
     for (i=0 ; i<numsides ; i++)
     {
@@ -852,7 +840,7 @@ void R_PrecacheLevel (void)
 
     // Precache sprites.
     spritepresent = alloca(numsprites);
-    memset (spritepresent,0, numsprites);
+    D_memset (spritepresent,0, numsprites);
 
     for (th = thinkercap.next ; th != &thinkercap ; th=th->next)
     {

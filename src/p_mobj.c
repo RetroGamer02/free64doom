@@ -38,8 +38,6 @@
 #include "doomstat.h"
 
 
-
-
 void G_PlayerReborn (int player);
 void P_SpawnMapThing (mapthing_t*	mthing);
 
@@ -487,7 +485,7 @@ P_SpawnMobj
     mobjinfo_t*	info;
 	
     mobj = Z_Malloc (sizeof(*mobj), PU_LEVEL, NULL);
-    memset (mobj, 0, sizeof (*mobj));
+    D_memset (mobj, 0, sizeof (*mobj));
     info = &mobjinfo[type];
 
     mobj->type = type;
@@ -717,7 +715,8 @@ void P_SpawnMapThing (mapthing_t* mthing)
     {
 	if (deathmatch_p < &deathmatchstarts[10])
 	{
-	    memcpy (deathmatch_p, mthing, sizeof(*mthing));
+//	    n64_memcpy (deathmatch_p, mthing, sizeof(*mthing));
+	    D_memcpy (deathmatch_p, mthing, sizeof(*mthing));
 	    deathmatch_p++;
 	}
 	return;
@@ -909,8 +908,8 @@ P_SpawnMissile
 
     th->angle = an;
     an >>= ANGLETOFINESHIFT;
-    th->momx = FixedMul (th->info->speed, finecosine(an));
-    th->momy = FixedMul (th->info->speed, finesine(an));
+    th->momx = FixedMul (th->info->speed, finecosine[an]);
+    th->momy = FixedMul (th->info->speed, finesine[an]);
 	
     dist = P_AproxDistance (dest->x - source->x, dest->y - source->y);
     dist = dist / th->info->speed;
@@ -976,9 +975,9 @@ P_SpawnPlayerMissile
     th->target = source;
     th->angle = an;
     th->momx = FixedMul( th->info->speed,
-			 finecosine(an>>ANGLETOFINESHIFT));
+			 finecosine[an>>ANGLETOFINESHIFT]);
     th->momy = FixedMul( th->info->speed,
-			 finesine(an>>ANGLETOFINESHIFT));
+			 finesine[an>>ANGLETOFINESHIFT]);
     th->momz = FixedMul( th->info->speed, slope);
 
     P_CheckMissileSpawn (th);

@@ -77,6 +77,7 @@ char commercial_banner[] =
                 "1-800-388-PIR8\n"
                 "==================================\n";
 
+extern uint16_t *buf16;
 extern int return_from_D_DoomMain;
 
 unsigned long I_GetTime(void);    
@@ -210,11 +211,8 @@ void D_Display(void)
     static  boolean        fullscreen = false;
     static  gamestate_t    oldgamestate = -1;
     static  int            borderdrawcount;
-            int            nowtime;
-            int            tics;
             int            y;
-            int            wipestart;
-            boolean        done;
+//          boolean        done;
             boolean        wipe;
             boolean        redrawsbar;
 
@@ -239,7 +237,6 @@ void D_Display(void)
     if (gamestate != wipegamestate)
     {
         wipe = true;
-        wipe_StartScreen(0, 0, SCREENWIDTH, SCREENHEIGHT); 
     }
     else
     {
@@ -288,18 +285,21 @@ void D_Display(void)
 
         case GS_INTERMISSION:
         {
+            I_SetPalette(W_CacheLumpName ("PLAYPAL",PU_CACHE));
             WI_Drawer();
             break;
         }
 
         case GS_FINALE:
         {
+            I_SetPalette(W_CacheLumpName ("PLAYPAL",PU_CACHE));
             F_Drawer();
             break;
         }
 
         case GS_DEMOSCREEN:
         {
+            I_SetPalette(W_CacheLumpName ("PLAYPAL",PU_CACHE));
             D_PageDrawer();
             break;
         }
@@ -319,7 +319,6 @@ void D_Display(void)
     // clean up border stuff
     if ((gamestate != oldgamestate) && (gamestate != GS_LEVEL))
     {
-        I_SetPalette(W_CacheLumpName ("PLAYPAL",PU_CACHE));
     }
 
     // see if the border needs to be initially drawn
@@ -360,53 +359,15 @@ void D_Display(void)
             y = viewwindowy+4;
         }
 
-        V_DrawPatch(viewwindowx+((scaledviewwidth-68)/2),y,W_CacheLumpName("M_PAUSE", PU_CACHE));
+        V_DrawPatchDirect(viewwindowx+((scaledviewwidth-68)/2),y,0,W_CacheLumpName("M_PAUSE", PU_CACHE));
     }
 
     // menus go directly to the screen
     M_Drawer(); // menu is drawn even on top of everything
 
     NetUpdate(); // send out any new accumulation
-
-    if (!wipe)
-    {
-        I_FinishUpdate();
-        return;
-    }
-
-    // wipe update
-    wipe_EndScreen(0, 0, SCREENWIDTH, SCREENHEIGHT);
-
-    wipestart = I_GetTime () - 1;
-
-    do
-    {
-        do
-        {
-            nowtime = I_GetTime ();
-            tics = nowtime - wipestart;
-        }
-        while (!tics);
-
-        wipestart = nowtime;
-        done = wipe_ScreenWipe(wipe_Melt, 0, 0, SCREENWIDTH, SCREENHEIGHT, tics);
-
-        M_Drawer ();    // menu is drawn even on top of wipes
-
-        I_FinishUpdate();
-        I_StartFrame();
-    }
-    while (!done);    
-
-    I_FinishUpdate();
 }
 
-// use this to hold _dc->buffer pointer whenever we get a surface in D_DoomLoop
-// now each R_DrawColumn/R_DrawSpan call only needs one "lw" instruction to get screen
-// instead of two
-// saves (num cols + num spans) "lw" instructions per rendered frame
-// that is 1000+ loads per frame
-void *bufptr;
 
 //
 //  D_DoomLoop
@@ -417,7 +378,6 @@ void D_DoomLoop(void)
 
     while (!return_from_D_DoomMain)
     {
-        I_StartFrame();
         // process one or more tics
         if (singletics)
         {
@@ -440,7 +400,10 @@ void D_DoomLoop(void)
 
         S_UpdateSounds(players[consoleplayer].mo);// move positional sounds
 
+        _dc = lockVideo(1);
+        buf16 = (uint16_t *)_dc->buffer;
         D_Display();
+        unlockVideo(_dc);
     }
 }
 
@@ -471,7 +434,7 @@ void D_PageTicker(void)
 //
 void D_PageDrawer(void)
 {
-    V_DrawPatch(0,0,W_CacheLumpName(pagename, PU_CACHE));
+    V_DrawPatch(0,0,0,W_CacheLumpName(pagename, PU_CACHE));
 }
 
 
@@ -605,12 +568,14 @@ char title[128];
 //
 void D_AddFile(char *file)
 {
-    int numwadfiles;
-    for (numwadfiles = 0 ; wadfiles[numwadfiles] ; numwadfiles++)
-    {
-        ;
-    }
-    wadfiles[numwadfiles] = file;
+//    int numwadfiles;
+//    for (numwadfiles = 0 ; wadfiles[numwadfiles] ; numwadfiles++)
+//    {
+//        ;
+//    }
+//    wadfiles[numwadfiles] = file;
+
+    wadfiles[0] = file;
 }
 
 static char __attribute__((aligned(8))) gameid[16];
@@ -628,15 +593,13 @@ char *get_GAMEID()
     }
     memset(gameid,0,16);
 
-    if (len != dfs_read(gameid, sizeof(char), len, fd))
+    if (len != dfs_read(gameid, len, 1, fd))
     {
         I_Error("get_GAMEID: DFS could not read identifier file after opening.\n");
     }
     dfs_close(fd);
 
-
-    // deal with newlines or other stray characters after the end of the filename
-    for (size_t i=0;i<len;i++)
+    for (size_t i=0;i<16;i++)
     {
         if (!(
             ('a' <= gameid[i] && gameid[i] <= 'z') ||
@@ -645,7 +608,6 @@ char *get_GAMEID()
             ('.' == gameid[i]) ))
         {
             gameid[i] = '\0';
-            break;
         }
     }
 
@@ -898,7 +860,7 @@ void D_DoomMain(void)
     for(int i=0;i<2;i++)
     {
         _dc = lockVideo(1);
-        memset(_dc->buffer, 0, SCREENWIDTH*SCREENHEIGHT*2);
+        D_memset(_dc->buffer, 0, 320*240*2);
         unlockVideo(_dc);
     }
 

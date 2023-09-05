@@ -47,9 +47,19 @@
 #include <errno.h>
 
 /**********************************************************************/
+// On the PC, need swap routines because the MIDI file was made on the Amiga and
+// is in big endian format. :)
+// The Nintendo 64 is also big endian so these are no-ops here. :D
 
-// I haven't re-written this yet to use fillbuffer callbacks so I just bang at the hardware
+#define WSWAP(x) x
+#define LSWAP(x) x
+
+//extern volatile struct AI_regs_s *AI_regs;
 volatile struct AI_regs_s *AI_regs = (struct AI_regs_s *)0xA4500000;
+
+
+extern const int MIDI_FILE;
+extern const int MIDI_FILESIZE;
 
 // Any value of numChannels set
 // by the defaults code in M_misc is now clobbered by I_InitSound().
@@ -58,11 +68,15 @@ extern int numChannels;
 
 /**********************************************************************/
 
+typedef unsigned int ULONG;
+typedef unsigned short UWORD;
+typedef unsigned char UBYTE;
+typedef char BYTE;
 
 #define SAMPLERATE 11025
+//22050
 
 // NUM_VOICES = SFX_VOICES + MUS_VOICES
-#define NUM_MIDI_INSTRUMENTS 182
 #define SFX_VOICES 8
 #define MUS_VOICES 16
 #define NUM_VOICES (SFX_VOICES+MUS_VOICES)
@@ -71,18 +85,18 @@ extern int numChannels;
 typedef struct MUSheader
 {
     // identifier "MUS" 0x1A
-    char        ID[4];
-    uint16_t    scoreLen;
-    uint16_t    scoreStart;
+    char     ID[4];
+    UWORD    scoreLen;
+    UWORD    scoreStart;
     // count of primary channels
-    uint16_t    channels;
+    UWORD    channels;
     // count of secondary channels
-    uint16_t    sec_channels;
-    uint16_t    instrCnt;
-    uint16_t    dummy;
+    UWORD    sec_channels;
+    UWORD    instrCnt;
+    UWORD    dummy;
 
     // variable-length part starts here
-    uint16_t    instruments[];
+    UWORD    instruments[];
 }
 MUSheader_t;
 
@@ -102,41 +116,42 @@ struct Channel
 
 struct midiHdr
 {
-    uint32_t rate;
-    uint32_t loop;                          // 16.16 fixed pt
-    uint32_t length;                        // 16.16 fixed pt
-    uint16_t base;                          // note base of sample
-    int8_t sample[8];                      // actual length varies
+    ULONG rate;
+    ULONG loop;                          // 16.16 fixed pt
+    ULONG length;                        // 16.16 fixed pt
+    UWORD base;                          // note base of sample
+    BYTE sample[8];                      // actual length varies
 };
 
 
 typedef struct Voice
 {
-    uint32_t index;
-    uint32_t step;
-    uint32_t loop;
-    uint32_t length;
+    ULONG index;
+    ULONG step;
+    ULONG loop;
+    ULONG length;
     int32_t ltvol;
     int32_t rtvol;
     int chan;
-    uint16_t base;
-    uint16_t flags;
-    int8_t *wave;
+    UWORD base;
+    UWORD flags;
+    BYTE *wave;
 }
 Voice_t;
 
 static int __attribute__((aligned(8))) voice_inuse[MUS_VOICES];
-static struct Channel __attribute__((aligned(8))) mus_channel[MUS_VOICES];
+static struct Channel __attribute__((aligned(8))) mus_channel[16];
 
 static struct Voice __attribute__((aligned(8))) audVoice[NUM_VOICES];
-static struct Voice __attribute__((aligned(8))) midiVoice[NUM_MIDI_INSTRUMENTS];
+static struct Voice __attribute__((aligned(8))) midiVoice[256];
 
 // The actual lengths of all sound effects.
 static int __attribute__((aligned(8))) lengths[NUMSFX];
 
-static uint32_t NUM_SAMPLES = 316;
-static uint32_t BEATS_PER_PASS = 4;
+static ULONG NUM_SAMPLES = 316;
+static ULONG BEATS_PER_PASS = 4;
 
+static long __attribute__((aligned(8))) accum[632*4];
 static short __attribute__((aligned(8))) pcmout1[632*4];
 static short __attribute__((aligned(8))) pcmout2[632*4];
 static int __attribute__((aligned(8))) pcmflip = 0;
@@ -146,16 +161,16 @@ short __attribute__((aligned(8))) *pcmbuf;
 
 static int changepitch;
 
-static uint32_t master_vol =  0x0001B000; // (0x0000F000 << 1) - 0x3000 
+static int32_t master_vol =  0x0000F000;
 
 static int musicdies  = -1;
 static int music_okay =  0;
 
-uint32_t __attribute__((aligned(8))) midi_pointers[NUM_MIDI_INSTRUMENTS];
+uint32_t __attribute__((aligned(8))) midi_pointers[182];
 
-static uint16_t score_len, score_start, inst_cnt;
+static UWORD score_len, score_start, inst_cnt;
 static void __attribute__((aligned(8))) *score_data;
-static uint8_t __attribute__((aligned(8))) *score_ptr;
+static UBYTE __attribute__((aligned(8))) *score_ptr;
 
 static int mus_delay    = 0;
 static int mus_looping  = 0;
@@ -166,16 +181,52 @@ uint32_t __attribute__((aligned(8))) used_instrument_bits[8] = {0,0,0,0,0,0,0,0}
 
 extern int snd_SfxVolume;
 
+typedef struct mixer_state {
+    uint32_t first_voice_to_mix;
+    uint32_t last_voice_to_mix;
+    uint32_t _fb_index;
+    uint32_t _fb_step;
+    int32_t _fb_ltvol;
+    int32_t _fb_rtvol;
+    int32_t _fb_sample;
+    int32_t _fb_ix;
+    int32_t _fb_iy;
+    uint32_t _fb_loop;
+    uint32_t _fb_length;
+    int32_t _fb_pval, _fb_pval2;
+    BYTE *_fb_wvbuff;
+} mixer_state_t;
+
 extern display_context_t _dc;
 
 #define PANMOD 127
+
+typedef struct event_loop_state_s
+{
+    UBYTE event;
+    UBYTE note;
+    UBYTE time;
+    UBYTE ctrl;
+    UBYTE value;
+    UBYTE a,b,c;
+    ULONG pitch;
+    int next_time;
+    int channel;
+    int voice;
+    int inst;
+    int volume;
+    int pan;
+}
+event_loop_state_t;
+
+static mixer_state_t doom_mixer;
 
 
 /**********************************************************************/
 
 void fill_buffer(short *buffer);
 
-void Sfx_Start(int8_t *wave, int cnum, int step, int vol, int sep, int length);
+void Sfx_Start(char *wave, int cnum, int step, int vol, int sep, int length);
 void Sfx_Update(int cnum, int step, int vol, int sep);
 void Sfx_Stop(int cnum);
 int Sfx_Done(int cnum);
@@ -196,25 +247,32 @@ void reset_midiVoices(void)
 
     used_instrument_count = -1;
 
-    for (i=0;i<NUM_MIDI_INSTRUMENTS;i++)
+    for (i=0;i<256;i++)
     {
         if (midiVoice[i].wave)
         {
             free((void*)((uintptr_t)midiVoice[i].wave & 0x8FFFFFFF));
         }
     }
-    memset(mus_channel, 0, sizeof(mus_channel));
-    memset(audVoice,    0, sizeof(audVoice));
-    memset(midiVoice,   0, sizeof(midiVoice));
-    memset(voice_inuse, 0, sizeof(voice_inuse));
+    D_memset(mus_channel, 0, sizeof(struct Channel)*MUS_VOICES);
+    D_memset(audVoice, 0x00, sizeof(Voice_t)*(NUM_VOICES));
+    D_memset(midiVoice, 0, sizeof(Voice_t)*256);
+    D_memset(voice_inuse, 0, MUS_VOICES*sizeof(int));
 
     // instrument used lookups
-    memset(used_instrument_bits, 0, sizeof(used_instrument_bits));
+    used_instrument_bits[0] = 0;
+    used_instrument_bits[1] = 0;
+    used_instrument_bits[2] = 0;
+    used_instrument_bits[3] = 0;
+    used_instrument_bits[4] = 0;
+    used_instrument_bits[5] = 0;
+    used_instrument_bits[6] = 0;
+    used_instrument_bits[7] = 0;
 
-    for (i=0;i<NUM_MIDI_INSTRUMENTS;i++)
+    for (i=0;i<256;i++)
     {
-        midiVoice[i].step = 0x10000;
-        midiVoice[i].length = 2000;
+        midiVoice[i].step = (1 << 16);
+        midiVoice[i].length = 2000 << 16;
         midiVoice[i].base = 60;
     }
 }
@@ -227,12 +285,12 @@ void reset_midiVoices(void)
 //
 void *getsfx (char *sfxname, int *len)
 {
-    uint8_t*    sfx;
-    uint8_t*    cnvsfx;
-    int         i;
-    int         size;
-    char        name[32];
-    int         sfxlump;
+    unsigned char *sfx;
+    unsigned char *cnvsfx;
+    int i;
+    int size;
+    char name[32];
+    int sfxlump;
 
     // Get the sound data from the WAD, allocate lump
     //  in zone memory.
@@ -258,10 +316,10 @@ void *getsfx (char *sfxname, int *len)
     }
 
     size = W_LumpLength(sfxlump);
-    sfx = (uint8_t*)W_CacheLumpNum(sfxlump, PU_STATIC);
+    sfx = (unsigned char*)W_CacheLumpNum(sfxlump, PU_STATIC);
 
     // Allocate from zone memory.
-    cnvsfx = (uint8_t*)Z_Malloc(size, PU_SOUND, 0);
+    cnvsfx = (unsigned char*)Z_Malloc(size, PU_SOUND, 0);
     // Now copy and convert offset to signed.
     for (i = 0; i < size; i++)
     {
@@ -274,8 +332,8 @@ void *getsfx (char *sfxname, int *len)
     // return length.
     *len = size;
 
-    // Return uncached pointer for allocated, converted data.
-    return (void *)((uintptr_t)cnvsfx | 0xA0000000);
+    // Return allocated converted data.
+    return (void *)((uintptr_t)cnvsfx|0xA0000000);
 }
 
 
@@ -286,7 +344,6 @@ void *getsfx (char *sfxname, int *len)
 
 void sound_callback(void)
 {
-    memset(pcmbuf, 0, (NUM_SAMPLES << 2));
     // Sound mixing for the buffer is synchronous.
     // Synchronous sound output is explicitly called.
     I_UpdateSound();
@@ -350,7 +407,7 @@ void I_SubmitSound (void)
 {
     if (!(AI_regs->status & AI_STATUS_FULL))
     {
-        AI_regs->address = (void*)pcmbuf;
+        AI_regs->address = (uint32_t *)((uintptr_t)pcmbuf);
         AI_regs->length = NUM_SAMPLES*2*2;
         AI_regs->control = 1;
         pcmflip ^= 1;
@@ -362,7 +419,6 @@ void I_SubmitSound (void)
 // ... shut down and relase at program termination.
 void I_ShutdownSound (void)
 {
-    set_AI_interrupt(0);
 }
 
 /**********************************************************************/
@@ -451,16 +507,14 @@ void I_InitMusic(void)
     if (-1 == mphnd)
     {
         printf("I_InitMusic: Could not open MIDI_Instruments file (%s)\n", strerror(errno));
-        printf("             MUS playback is disabled.\n");
         return;
     }
 
-    rc = dfs_read(midi_pointers, sizeof(uint32_t), NUM_MIDI_INSTRUMENTS, mphnd);
+    rc = dfs_read(midi_pointers, sizeof(ULONG)*182, 1, mphnd);
     dfs_close(mphnd);
-    if ((sizeof(uint32_t)*NUM_MIDI_INSTRUMENTS) != rc)
+    if ((sizeof(ULONG)*182) != rc)
     {
         printf("I_InitMusic: Could not read MUS instrument headers (%s)\n", strerror(errno));
-        printf("             MUS playback is disabled.\n");
         return;
     }
 
@@ -471,7 +525,6 @@ void I_InitMusic(void)
 /**********************************************************************/
 void I_ShutdownMusic(void)
 {
-    set_AI_interrupt(0);
 }
 
 /**********************************************************************/
@@ -480,27 +533,41 @@ void I_SetMusicVolume(int volume)
 {
     snd_MusicVolume = volume;
 
-    Mus_SetVol(volume);
+    if (music_okay)
+    {
+        Mus_SetVol(volume);
+    }
 }
 
 /**********************************************************************/
 // PAUSE game handling.
 void I_PauseSong(int handle)
 {
-    Mus_Pause(handle);
+    if (music_okay)
+    {
+        Mus_Pause(handle);
+    }
 }
 
 /**********************************************************************/
 void I_ResumeSong(int handle)
 {
-    Mus_Resume(handle);
+    if (music_okay)
+    {
+        Mus_Resume(handle);
+    }
 }
 
 /**********************************************************************/
 // Registers a song handle to song data.
 int I_RegisterSong(void *data)
 {
-    return Mus_Register(data);
+    if (music_okay)
+    {
+        return Mus_Register(data);
+    }
+
+    return 0;
 }
 
 /**********************************************************************/
@@ -513,7 +580,10 @@ I_PlaySong
 ( int        handle,
   int        looping )
 {
-    Mus_Play(handle, looping);
+    if (music_okay)
+    {
+        Mus_Play(handle, looping);
+    }
 
     musicdies = gametic + TICRATE*30;
 }
@@ -522,7 +592,10 @@ I_PlaySong
 // Stops a song over 3 seconds.
 void I_StopSong(int handle)
 {
-    Mus_Stop(handle);
+    if (music_okay)
+    {
+        Mus_Stop(handle);
+    }
 
     musicdies = 0;
 }
@@ -531,20 +604,23 @@ void I_StopSong(int handle)
 // See above (register), then think backwards
 void I_UnRegisterSong(int handle)
 {
-    Mus_Unregister(handle);
+    if (music_okay)
+    {
+        Mus_Unregister(handle);
+    }
 }
 
 /**********************************************************************/
 
-void Sfx_Start(int8_t *wave, int cnum, int step, int volume, int seperation, int length)
+void Sfx_Start(char *wave, int cnum, int step, int volume, int seperation, int length)
 {
     int32_t vol = (volume<<3);
     int32_t sep = seperation;
 
     audVoice[cnum].wave = wave + 8;
     audVoice[cnum].index = 0;
-    audVoice[cnum].step = (uint32_t)((step<<16) / SAMPLERATE);
-    audVoice[cnum].loop = 0 ;
+    audVoice[cnum].step = (ULONG)((step<<16) / SAMPLERATE);
+    audVoice[cnum].loop = 0 << 16;
     audVoice[cnum].length = (length - 8) << 16;
     audVoice[cnum].ltvol = FixedMul(((127 - ((127*sep*sep) / 65536))<<16), (vol<<7));
     sep -= 256;
@@ -557,7 +633,7 @@ void Sfx_Update(int cnum, int step, int volume, int seperation)
     int32_t vol = (volume<<3);
     int32_t sep = seperation;
 
-    audVoice[cnum].step = (uint32_t)((step<<16) / SAMPLERATE);
+    audVoice[cnum].step = (ULONG)((step<<16) / SAMPLERATE);
     audVoice[cnum].ltvol = FixedMul(((127 - (127*sep*sep) / 65536) << 16), (vol<<7));
     sep -= 256;
     audVoice[cnum].rtvol = FixedMul(((127 - (127*sep*sep) / 65536) << 16), (vol<<7));
@@ -598,8 +674,8 @@ int Mus_Register(void *musdata)
 
     struct midiHdr *mhdr;
 
-    uint32_t *lptr = (uint32_t *)musdata;
-    uint16_t *wptr = (uint16_t *)musdata;
+    ULONG *lptr = (ULONG *)musdata;
+    UWORD *wptr = (UWORD *)musdata;
 
     Mus_Unregister(1);
     reset_midiVoices();
@@ -607,7 +683,7 @@ int Mus_Register(void *musdata)
 
     // music won't start playing until mus_playing set at this point
 
-    if (lptr[0] != 0x4d55531a)
+    if (lptr[0] != LONG(0x1a53554d)) // 4D 55 53 1A
     {
         return 0; // "MUS",26 always starts a vaild MUS file
     }
@@ -635,36 +711,43 @@ int Mus_Register(void *musdata)
     score_data = musdata;
     MUSheader_t *musheader = (MUSheader_t*)score_data;
     // instrument used lookups
-    memset(used_instrument_bits,0,sizeof(used_instrument_bits));
+    used_instrument_bits[0] = 0;
+    used_instrument_bits[1] = 0;
+    used_instrument_bits[2] = 0;
+    used_instrument_bits[3] = 0;
+    used_instrument_bits[4] = 0;
+    used_instrument_bits[5] = 0;
+    used_instrument_bits[6] = 0;
+    used_instrument_bits[7] = 0;
     used_instrument_count = inst_cnt;
     for (i=0;i<inst_cnt;i++)
     {
         uint8_t instrument = (uint8_t)SHORT(musheader->instruments[i]);
         
-        // fix TNT crash with one of the 10s levels
-        if (!midi_pointers[instrument])
+		// fix TNT crash with one of the 10s levels
+        ULONG ptr = LSWAP(midi_pointers[instrument]);
+        if (!ptr)
             continue;
-
         used_instrument_bits[(instrument >> 5)] |= (1 << (instrument & 31));
     }
 
     // iterating over all instruments
-    for (i = 0; i < NUM_MIDI_INSTRUMENTS; i++)
+    for (i=0;i<182;i++)
     {
         // current instrument is used
         if (instrument_used(i))
         {
             // get the pointer into the instrument data struct
-            uintptr_t instrdata_ptr = midi_pointers[i];
+            ULONG ptr = LSWAP(midi_pointers[i]);
 
 #ifdef RANGECHECK
-            if (!instrdata_ptr)
+            if (!ptr)
             {
                 I_Error("Mus_Register: instrument %d used but MUS instrument pointer is NULL.\n", i);
             }
 
             // make sure it doesn't point to NULL
-            if (instrdata_ptr)
+            if (ptr)
 #endif
             {
                 // allocate some space for the header
@@ -696,10 +779,10 @@ int Mus_Register(void *musdata)
 #endif
                 }
 
-                // handle already checked
-                dfs_seek(hnd, instrdata_ptr, SEEK_SET);
+                // documentation for this makes it sound like it is pointless to test the return value
+                dfs_seek(hnd,ptr,SEEK_SET);
 
-                if (sizeof(struct midiHdr) != dfs_read(mhdr, sizeof(uint8_t), sizeof(struct midiHdr), hnd))
+                if (sizeof(struct midiHdr) != dfs_read((void*)mhdr,sizeof(struct midiHdr),1,hnd))
                 {
 #ifdef RANGECHECK
                     I_Error("Mus_Register: Could not read header for instrument %d from MIDI_Instruments file.\n", i);
@@ -709,25 +792,25 @@ int Mus_Register(void *musdata)
 #endif
                 }
 
-                size_t length = mhdr->length >> 16;
+                ULONG length = LSWAP(mhdr->length) >> 16;
 
-                int8_t* sample = (int8_t*)malloc(length);
+                void *sample = (void *)((uintptr_t)malloc(length));
 
                 if (sample)
                 {
-                    dfs_seek(hnd, instrdata_ptr + offsetof(struct midiHdr, sample), SEEK_SET);
-                    dfs_read(sample, sizeof(int8_t), length, hnd);
+                    dfs_seek(hnd,ptr + 4 + 4 + 4 + 2,SEEK_SET);
+                    dfs_read(sample,length,1,hnd);
                     // it doesn't hurt to access sound data from a non-cached address
                     // it gets mixed to uncached buffer anyway
-                    midiVoice[i].wave   = (int8_t*)((uintptr_t)sample | 0xA0000000);
+                    midiVoice[i].wave   = (BYTE*)((uintptr_t)sample | 0xA0000000);
                     midiVoice[i].index  = 0;
-                    midiVoice[i].step   = 0x10000;
-                    midiVoice[i].loop   = mhdr->loop;
-                    midiVoice[i].length = mhdr->length;
+                    midiVoice[i].step   = 1 << 16;
+                    midiVoice[i].loop   = LSWAP(mhdr->loop);
+                    midiVoice[i].length = LSWAP(mhdr->length);
                     midiVoice[i].ltvol  = 0;
                     midiVoice[i].rtvol  = 0;
-                    midiVoice[i].base   = mhdr->base;
-                    midiVoice[i].flags  = 0;
+                    midiVoice[i].base   = WSWAP(mhdr->base);
+                    midiVoice[i].flags  = 0x00;
 
                     free(mhdr);
                     dfs_close(hnd);
@@ -750,7 +833,6 @@ int Mus_Register(void *musdata)
 void Mus_Unregister(int handle)
 {
     Mus_Stop(handle);
-
     // music won't start playing until mus_playing set at this point
 
     score_data = 0;
@@ -803,132 +885,16 @@ void Mus_Resume(int handle)
     mus_playing = 1;                     // 1 = play from current position
 }
 
-/*
-GCC 12.1.0 mips64-elf
--O3
-
-compiles this down to what I was hoping for,
-accumulating all of the mixed channels in a register
-before writing them out to the output sound buffer
-
-            next_mixed_sample += (ssmp1 | ssmp2);
-                        or       ssmp1, ssmp1, ssmp2
-                        addu     next_mixed_sample, next_mixed_sample, ssmp1
-        for (size_t ix=0; ix<NUM_VOICES; ix++)
-                        addiu    &audVoice[ix].flags, &audVoice[ix].flags, 36
-                        bne      &audVoice[ix].flags, &audVoice[NUM_VOICES].flags, I_MixSound+0x50
-                        nop
-    for (size_t iy=0; iy < (NUM_SAMPLES << 1); iy+=2)
-                        addiu    iy, iy, 2
-        }
-
-        *((uint32_t *)&pcmbuf[iy]) = next_mixed_sample;
-                        sw       next_mixed_sample, 0(&pcmbuf[iy])
-    for (size_t iy=0; iy < (NUM_SAMPLES << 1); iy+=2)
-                        bne      iy, (NUM_SAMPLES << 1), I_MixSound+0x48
-                        addiu    &pcmbuf[iy], &pcmbuf[iy], 4
-*/
-void I_MixSound (void)
-{
-    for (size_t iy=0; iy < (NUM_SAMPLES << 1); iy+=2)
-    {
-        uint32_t next_mixed_sample = 0;
-        // mix enabled voices
-        for (size_t ix=0; ix<NUM_VOICES; ix++)
-        {
-            uint32_t index = audVoice[ix].index;
-            if (!(audVoice[ix].flags & 0x01))
-                continue;
-
-            uint32_t step = audVoice[ix].step;;
-            uint32_t ltvol = audVoice[ix].ltvol;
-            uint32_t rtvol = audVoice[ix].rtvol;
-            uint32_t loop = audVoice[ix].loop;
-            uint32_t length = audVoice[ix].length;
-            int8_t*  wvbuff = audVoice[ix].wave;
-#ifdef RANGECHECK
-            // Doom 2 has issues without this, or at least my 1.666 data files do
-            if (!((uintptr_t)wvbuff & 0x80000000))
-            {
-                continue;
-            }
-#endif
-            if (!(audVoice[ix].flags & 0x80))
-            {
-                // special handling for instrument
-                if ((audVoice[ix].flags & 0x02) && iy == 0)
-                {
-                    // releasing
-                    ltvol = ((ltvol << 3)-ltvol)>>3;
-                    rtvol = ((rtvol << 3)-rtvol)>>3;
-                    audVoice[ix].ltvol = ltvol;
-                    audVoice[ix].rtvol = rtvol;
-
-                    // this was originally derived from some floating point value in the original code
-                    // changed to fixed_t when I went to a fixed-point mixer
-                    // and further adjusted by ear until settling on this value
-                    #define cmpvol (665835 - 150000)
-                    if (((uint32_t)ltvol <= cmpvol) && ((uint32_t)rtvol <= cmpvol))
-                    {
-                        // disable voice
-                        audVoice[ix].flags = 0;
-                        // next voice
-                        continue;
-                    }
-                }
-                step = FixedMul(step, mus_channel[audVoice[ix].chan & 15].pitch);
-                ltvol = FixedMul(ltvol, mus_volume) << 7;
-                rtvol = FixedMul(rtvol, mus_volume) << 7;
-            }
-
-            if (index >= length)
-            {
-                if (audVoice[ix].flags & 0x80)
-                {
-                    // disable voice
-                    audVoice[ix].flags = 0;
-                    // exit sample loop
-                    continue;
-                }
-                else
-                {
-                    // check if instrument has loop
-                    if (loop)
-                    {
-                        index -= length;
-                        index += loop;
-                    }
-                    else
-                    {
-                        // disable voice
-                        audVoice[ix].flags = 0;
-                        // exit sample loop
-                        continue;
-                    }
-                }
-            }
-
-            uint32_t sample = FixedMul(wvbuff[index >> 16],master_vol);
-
-            uint32_t ssmp1 = FixedMul(sample, ltvol)<<16;
-            uint32_t ssmp2 = FixedMul(sample, rtvol)&0xFFFF;
-
-            next_mixed_sample += (ssmp1 | ssmp2);
-
-            index += step;
-
-            audVoice[ix].index = index;
-        }
-
-        *((uint32_t *)&pcmbuf[iy]) = next_mixed_sample;
-    }
-}
 
 /**********************************************************************/
-
+//static uint32_t lsmp[4];
 void I_UpdateSound (void)
 {
-    if (mus_playing < 0 || !music_okay)
+    D_memset((void *)accum, 0, (NUM_SAMPLES << 3));
+
+//if(music_okay) 
+{
+    if (mus_playing < 0)
     {
         // music now off
         mus_playing = 0;
@@ -948,148 +914,151 @@ void I_UpdateSound (void)
         {
             mus_playing = 1;
             // start music from beginning
-            score_ptr = (uint8_t *)((uint32_t)score_data + (uint32_t)score_start);
+            score_ptr = (UBYTE *)((ULONG)score_data + (ULONG)score_start);
         }
 
         // 1=140Hz, 2=70Hz, 4=35Hz
         mus_delay -= BEATS_PER_PASS;
         if (mus_delay <= 0)
         {
-           uint32_t pitch;
-           uint8_t event;
-           uint8_t note;
-           uint8_t time;
-           uint8_t ctrl;
-           uint8_t value;
-           int32_t next_time;
-           int32_t channel;
-           int32_t voice;
-           int32_t inst;
-           int32_t volume;
-           int32_t pan;
+            event_loop_state_t loop_state;
+
 nextEvent:
             do
             {
-                event = *score_ptr++;
-                switch ((event >> 4) & 7)
+                // score_ptr++ 1
+                loop_state.event = *score_ptr++;
+                switch ((loop_state.event >> 4) & 7)
                 {
                     // Release
                     case 0:
                     {
-                        note = *score_ptr++;
-                        note &= 0x7f;
-                        channel = (int)(event & 15);
-                        voice = mus_channel[channel].map[(uint32_t)note] - 1;
-                        mus_channel[channel].lastnote = -1;
-                        if (voice >= 0)
+                           // score_ptr++ 2
+                        loop_state.note = *score_ptr++;
+                        loop_state.note &= 0x7f;
+                        loop_state.channel = (int)(loop_state.event & 15);
+                        loop_state.voice = mus_channel[loop_state.channel].map[(ULONG)loop_state.note] - 1;
+                        mus_channel[loop_state.channel].lastnote = -1;
+                        if (loop_state.voice >= 0)
                         {
                             // clear mapping
-                            mus_channel[channel].map[(uint32_t)note] = 0;
+                            mus_channel[loop_state.channel].map[(ULONG)loop_state.note] = 0;
                             // voice available
-                            voice_inuse[voice] = 0;
+                            voice_inuse[loop_state.voice] = 0;
                             // voice releasing
-                            audVoice[voice + SFX_VOICES].flags |= 0x02;
+                            audVoice[loop_state.voice + SFX_VOICES].flags |= 0x02;
                         }
                         break;
                     }
                     // Play note
                     case 1:
                     {
-                        note = *score_ptr++;
-                        channel = (int)(event & 15);
-                        volume = 0;
-                        if (note & 0x80)
+                        // score_ptr++ 2
+                        loop_state.note = *score_ptr++;
+                        loop_state.channel = (int)(loop_state.event & 15);
+                        loop_state.volume = 0;//-1;
+                        if (loop_state.note & 0x80)
                         {
                             // set volume as well
-                            note &= 0x7f;
-                            volume = (int32_t)(*score_ptr++);
+                            loop_state.note &= 0x7f;
+                            // score_ptr++ 3
+                            loop_state.volume = (int32_t)(*score_ptr++);
                         }
-                        for (voice=0; voice<MUS_VOICES+1; voice++)
+                        for (loop_state.voice=0; loop_state.voice<MUS_VOICES+1; loop_state.voice++)
                         {
-                            if(voice < MUS_VOICES && !voice_inuse[voice])
+                            if(loop_state.voice < MUS_VOICES && !voice_inuse[loop_state.voice])
                             {
                                 // found free voice
                                 break;
                             }
                         }
-                        if (voice < MUS_VOICES)
+                        if (loop_state.voice < MUS_VOICES)
                         {
                             // in use
-                            voice_inuse[voice] = 1;
-                            mus_channel[channel].lastnote = note;
-                            mus_channel[channel].map[(uint32_t)note] = voice + 1;
-                            if (volume > 0)
+                            voice_inuse[loop_state.voice] = 1;
+                            mus_channel[loop_state.channel].lastnote = loop_state.note;
+                            mus_channel[loop_state.channel].map[(ULONG)loop_state.note] = loop_state.voice + 1;
+                            if (loop_state.volume > 0)
                             {
-                                mus_channel[channel].vol = volume;
-                                pan = mus_channel[channel].pan;
-                                mus_channel[channel].ltvol = ((127 - pan) * volume) << 9;
-                                mus_channel[channel].rtvol = (pan * volume) << 9;
+                                mus_channel[loop_state.channel].vol = loop_state.volume;
+                                loop_state.pan = mus_channel[loop_state.channel].pan;
+                                mus_channel[loop_state.channel].ltvol = (((127 - loop_state.pan) * loop_state.volume)) << 9;
+                                mus_channel[loop_state.channel].rtvol = (((127 - (127 - loop_state.pan)) * loop_state.volume)) << 9;
                             }
 
-                            audVoice[voice + SFX_VOICES].ltvol = mus_channel[channel].ltvol;
-                            audVoice[voice + SFX_VOICES].rtvol = mus_channel[channel].rtvol;
+                            audVoice[loop_state.voice + SFX_VOICES].ltvol = mus_channel[loop_state.channel].ltvol;
+                            audVoice[loop_state.voice + SFX_VOICES].rtvol = mus_channel[loop_state.channel].rtvol;
 
                             // enable voice
-                            audVoice[voice + SFX_VOICES].flags = 0x01;
+                            audVoice[loop_state.voice + SFX_VOICES].flags = 0x01;
 
-                            if (channel != 15)
+                            if (loop_state.channel != 15)
                             {
-                                inst = mus_channel[channel].instrument;
-                                struct Voice *mvc = &midiVoice[inst];
+                                loop_state.inst = mus_channel[loop_state.channel].instrument;
+                                struct Voice *mvc = &midiVoice[loop_state.inst];
                                 // back link for pitch wheel
-                                audVoice[voice + SFX_VOICES].chan = channel;
-                                audVoice[voice + SFX_VOICES].wave = mvc->wave;
+                                audVoice[loop_state.voice + SFX_VOICES].chan = loop_state.channel;
+                                audVoice[loop_state.voice + SFX_VOICES].wave = mvc->wave;
 
                                 // I am sorry I don't have documentation on what I did here
                                 // but the highlights are
                                 // I took the tables for frequency and whatnot and did some curve fitting
                                 // with an online tool and then finessed the equations until it sounded good
 
-                                // all of this was to reduce memory accesses when mixing music
+                                // all of this was to reducing memory accesses when mixing music
 
                                 // empirically derived formula for note_table lookup
-                                uint32_t x = ((72 - mvc->base + (uint32_t)note) & 0x7f);
+                                uint32_t x = ((72 - mvc->base + (ULONG)loop_state.note) & 0x7f);
 
+                                // the pair of % and / hopefully compiles down to a single div instruction
+                                // with a mflo mfhi to get each part... hopefully
                                 // why 12? i dont know any more, but it was something
-                                // modern GCC at -O3 compiles this without generating a div, makes me happy
-                                uint32_t xi  = x % 12;
-                                uint32_t xs  = x / 12;
+                                uint32_t xi = x % 12;
+                                uint32_t xs = x / 12;
+                                uint32_t xi2=0;
                                 // xi squared
-                                uint32_t xi2 = xi * xi;
+                                for (int m=0;m<xi;m++)
+                                {
+                                    xi2 += xi;
+                                }
+                                xi2 <<= 3;
+                                xi <<= 9;
 
-                                audVoice[voice + SFX_VOICES].step = ( (0x10000 + (((xi2 << 7) + (xi2 << 4) + (xi2<<3))+((xi<<12)-(xi<<9))) ) << xs ) >> 6;
-                                //note_table[(72 - midiVoice[inst].base + (uint32_t)note) & 0x7f];
-                                audVoice[voice + SFX_VOICES].loop = mvc->loop;
-                                audVoice[voice + SFX_VOICES].length = mvc->length;
+                                audVoice[loop_state.voice + SFX_VOICES].step = ( (0x10000 + (((xi2 << 4) + (xi2 << 1) + (xi2))+((xi<<3)-(xi))) ) << xs ) >> 6;
+                                //note_table[(72 - midiVoice[inst].base + (ULONG)note) & 0x7f];
+                                audVoice[loop_state.voice + SFX_VOICES].loop = mvc->loop;
+                                audVoice[loop_state.voice + SFX_VOICES].length = mvc->length;
                             }
                             else
                             {
                                 // percussion channel - note is percussion instrument
-                                inst = (uint32_t)note + 100;
-                                struct Voice *mvc = &midiVoice[inst];
+                                loop_state.inst = (ULONG)loop_state.note + 100;
+                                struct Voice *mvc = &midiVoice[loop_state.inst];
                                 // back link for pitch wheel
-                                audVoice[voice + SFX_VOICES].chan = channel;
-                                audVoice[voice + SFX_VOICES].wave = mvc->wave;
-                                audVoice[voice + SFX_VOICES].step = 0x10000;
-                                audVoice[voice + SFX_VOICES].loop = mvc->loop;
-                                audVoice[voice + SFX_VOICES].length = mvc->length;
+                                audVoice[loop_state.voice + SFX_VOICES].chan = loop_state.channel;
+                                audVoice[loop_state.voice + SFX_VOICES].wave = mvc->wave;
+                                audVoice[loop_state.voice + SFX_VOICES].step = 0x10000;
+                                audVoice[loop_state.voice + SFX_VOICES].loop = mvc->loop;
+                                audVoice[loop_state.voice + SFX_VOICES].length = mvc->length;
                             }
-                            audVoice[voice + SFX_VOICES].index = 0;
+                            audVoice[loop_state.voice + SFX_VOICES].index = 0;
                         }
                         break;
                     }
                     // Pitch
                     case 2:
                     {
-                        pitch = ((uint32_t)*score_ptr++)&0xFF;
-                        channel = (int)(event & 15);
+                        // score_ptr++ 2
+                        loop_state.pitch = ((ULONG)*score_ptr++)&0xFF;
+                        loop_state.channel = (int)(loop_state.event & 15);
                         // pitch*64 - pitch*4 == pitch*60
-                        mus_channel[channel].pitch = ((pitch << 6) - (pitch<<2)) + 58180;
+                        mus_channel[loop_state.channel].pitch = ((loop_state.pitch << 6) - (loop_state.pitch<<2)) + 58180;
                         break;
                     }
                     // Tempo
                     case 3:
                     {
+                        // score_ptr++ 2
                         // skip value - not supported
                         score_ptr++;
                         break;
@@ -1097,34 +1066,36 @@ nextEvent:
                     // Change control
                     case 4:
                     {
-                        ctrl = *score_ptr++;
-                        value = *score_ptr++;
-                        channel = (int)(event & 15);
-                        switch (ctrl)
+                        // score_ptr++ 2
+                        loop_state.ctrl = *score_ptr++;
+                        // score_ptr++ 3
+                        loop_state.value = *score_ptr++;
+                        loop_state.channel = (int)(loop_state.event & 15);
+                        switch (loop_state.ctrl)
                         {
                             case 0:
                             {
                                 // set channel instrument
-                                mus_channel[channel].instrument = (uint32_t)value;
-                                mus_channel[channel].pitch = 0x10000;
+                                mus_channel[loop_state.channel].instrument = (ULONG)loop_state.value;
+                                mus_channel[loop_state.channel].pitch = 0x10000;
                                 break;
                             }
                             case 3:
                             {
                                 // set channel volume
-                                mus_channel[channel].vol = volume = value;
-                                pan = mus_channel[channel].pan;
-                                mus_channel[channel].ltvol = ((127 - pan) * volume) << 9;
-                                mus_channel[channel].rtvol = (pan * volume) << 9;
+                                mus_channel[loop_state.channel].vol = loop_state.volume = loop_state.value;
+                                loop_state.pan = mus_channel[loop_state.channel].pan;
+                                mus_channel[loop_state.channel].ltvol = (((127 - loop_state.pan) * loop_state.volume)) << 9;
+                                mus_channel[loop_state.channel].rtvol = (((127 - (127 - loop_state.pan)) * loop_state.volume)) << 9;
                                 break;
                             }
                             case 4:
                             {
                                 // set channel pan
-                                mus_channel[channel].pan = pan = value;
-                                volume = mus_channel[channel].vol;
-                                mus_channel[channel].ltvol = ((127 - pan) * volume) << 9;
-                                mus_channel[channel].rtvol = (pan * volume) << 9;
+                                mus_channel[loop_state.channel].pan = loop_state.pan = loop_state.value;
+                                loop_state.volume = mus_channel[loop_state.channel].vol;
+                                mus_channel[loop_state.channel].ltvol = (((127 - loop_state.pan) * loop_state.volume)) << 9;
+                                mus_channel[loop_state.channel].rtvol = (((127 - (127 - loop_state.pan)) * loop_state.volume)) << 9;
                                 break;
                             }
                         }
@@ -1133,18 +1104,22 @@ nextEvent:
                     // End score
                     case 6:
                     {
-                        for (voice=0; voice<MUS_VOICES; voice++)
-                        {
-                            audVoice[voice + SFX_VOICES].flags = 0;
-                            voice_inuse[voice] = 0;
-                        }
-
                         if (mus_looping)
                         {
-                            score_ptr = (uint8_t *)((uint32_t)score_data + (uint32_t)score_start);
+                            for (loop_state.voice=0; loop_state.voice<MUS_VOICES; loop_state.voice++)
+                            {
+                                audVoice[loop_state.voice + SFX_VOICES].flags = 0;
+                                voice_inuse[loop_state.voice] = 0;
+                            }
+                            score_ptr = (UBYTE *)((ULONG)score_data + (ULONG)score_start);
                         }
                         else
                         {
+                            for (loop_state.voice=0; loop_state.voice<MUS_VOICES; loop_state.voice++)
+                            {
+                                audVoice[loop_state.voice + SFX_VOICES].flags = 0;
+                                voice_inuse[loop_state.voice] = 0;
+                            }
                             mus_delay = 0;
                             mus_playing = 0;
                             goto mix;
@@ -1154,22 +1129,22 @@ nextEvent:
                 }
             }
             // not last event
-            while (!(event & 0x80));
+            while (!(loop_state.event & 0x80));
 
             // now get the time until the next event(s)
-            next_time = 0;
-            time = *score_ptr++;
+            loop_state.next_time = 0;
+            loop_state.time = *score_ptr++;
 
-            while (time & 0x80)
+            while (loop_state.time & 0x80)
             {
                 // while msb set, accumulate 7 bits
-                next_time |= (uint32_t)(time & 0x7f);
-                next_time <<= 7;
-                time = *score_ptr++;
+                loop_state.next_time |= (ULONG)(loop_state.time & 0x7f);
+                loop_state.next_time <<= 7;
+                loop_state.time = *score_ptr++;
             }
 
-            next_time |= (uint32_t)time;
-            mus_delay += next_time;
+            loop_state.next_time |= (ULONG)loop_state.time;
+            mus_delay += loop_state.next_time;
 
             if (mus_delay <= 0)
             {
@@ -1178,11 +1153,125 @@ nextEvent:
         }
     }
 
+}
+
 mix:
-    I_MixSound();
+    doom_mixer.first_voice_to_mix = snd_SfxVolume ? 0 : SFX_VOICES;
+    doom_mixer.last_voice_to_mix = mus_playing ? NUM_VOICES : (snd_SfxVolume ? SFX_VOICES : 0);
+    // mix enabled voices
+    for (
+        doom_mixer._fb_ix=doom_mixer.first_voice_to_mix;
+        doom_mixer._fb_ix<doom_mixer.last_voice_to_mix;
+        doom_mixer._fb_ix++
+        )
+    {
+        if (audVoice[doom_mixer._fb_ix].flags & 0x01)
+        {
+            doom_mixer._fb_index = audVoice[doom_mixer._fb_ix].index;
+            doom_mixer._fb_step = audVoice[doom_mixer._fb_ix].step;
+            doom_mixer._fb_loop = audVoice[doom_mixer._fb_ix].loop;
+            doom_mixer._fb_length = audVoice[doom_mixer._fb_ix].length;
+            doom_mixer._fb_ltvol = audVoice[doom_mixer._fb_ix].ltvol;
+            doom_mixer._fb_rtvol = audVoice[doom_mixer._fb_ix].rtvol;
+            doom_mixer._fb_wvbuff = audVoice[doom_mixer._fb_ix].wave;
+
+            if (!(audVoice[doom_mixer._fb_ix].flags & 0x80))
+            {
+                // special handling for instrument
+                if (audVoice[doom_mixer._fb_ix].flags & 0x02)
+                {
+                    // releasing
+                    doom_mixer._fb_ltvol = ((doom_mixer._fb_ltvol << 3)-doom_mixer._fb_ltvol)>>3;
+                    doom_mixer._fb_rtvol = ((doom_mixer._fb_rtvol << 3)-doom_mixer._fb_rtvol)>>3;
+                    audVoice[doom_mixer._fb_ix].ltvol = doom_mixer._fb_ltvol;
+                    audVoice[doom_mixer._fb_ix].rtvol = doom_mixer._fb_rtvol;
+
+                    // this was originally derived from some floating point value in the original code
+                    // changed to fixed_t when I went to a fixed-point mixer
+                    // and further adjusted by ear until settling on this value
+                    #define cmpvol (665835 - 150000)
+                    if (((uint32_t)doom_mixer._fb_ltvol <= cmpvol) && ((uint32_t)doom_mixer._fb_rtvol <= cmpvol))
+                    {
+                        // disable voice
+                        audVoice[doom_mixer._fb_ix].flags = 0;
+                        // next voice
+                        continue;
+                    }
+                }
+
+                doom_mixer._fb_step = (((int64_t)doom_mixer._fb_step * (int64_t)(mus_channel[audVoice[doom_mixer._fb_ix].chan & 15].pitch)) >> 16);
+                doom_mixer._fb_ltvol = (((int64_t)doom_mixer._fb_ltvol * (int64_t)(mus_volume)) >> 9);
+                doom_mixer._fb_rtvol = (((int64_t)doom_mixer._fb_rtvol * (int64_t)(mus_volume)) >> 9);
+            }
+
+            for (doom_mixer._fb_iy=0; doom_mixer._fb_iy < (NUM_SAMPLES << 1); doom_mixer._fb_iy+=2)
+            {
+                if (doom_mixer._fb_index >= doom_mixer._fb_length)
+                {
+                    if (audVoice[doom_mixer._fb_ix].flags & 0x80)
+                    {
+                        // disable voice
+                        audVoice[doom_mixer._fb_ix].flags = 0;
+                        // exit sample loop
+                        break;
+                    }
+                    else
+                    {
+                        // check if instrument has loop
+                        if (doom_mixer._fb_loop)
+                        {
+                            doom_mixer._fb_index -= doom_mixer._fb_length;
+                            doom_mixer._fb_index += doom_mixer._fb_loop;
+                        }
+                        else
+                        {
+                            // disable voice
+                            audVoice[doom_mixer._fb_ix].flags = 0;
+                            // exit sample loop
+                            break;
+                        }
+                    }
+                }
+
+                doom_mixer._fb_sample = 0;
+
+                // Doom 2 has issues without this, or at least my 1.666 data files do
+                if ((uint32_t)doom_mixer._fb_wvbuff & 0x80000000)
+                {
+                    int index = doom_mixer._fb_index >> 16;
+                    doom_mixer._fb_sample = (doom_mixer._fb_wvbuff[index]);
+                }
+                doom_mixer._fb_sample = FixedMul(doom_mixer._fb_sample,master_vol);
+
+                int ssmp1 = FixedMul(doom_mixer._fb_sample, doom_mixer._fb_ltvol);
+                int ssmp2 = FixedMul(doom_mixer._fb_sample, doom_mixer._fb_rtvol);
+                accum[doom_mixer._fb_iy    ] += ssmp1<<1;
+                accum[doom_mixer._fb_iy + 1] += ssmp2<<1;
+                doom_mixer._fb_index += doom_mixer._fb_step;
+            }
+            audVoice[doom_mixer._fb_ix].index = doom_mixer._fb_index;
+        }
+    }
 
 mixout:
-    return;
+    for (doom_mixer._fb_iy=0; doom_mixer._fb_iy < (NUM_SAMPLES << 1); doom_mixer._fb_iy+=4*2)
+    {
+        // long_sample = left_channel_sample<<16 | right_channel_sample
+
+        // I unrolled this to write four samples per loop iteration
+        // samples are 16-bit stereo interleaved
+
+        // write L,R pair in a single 32-bit write
+
+        uint32_t lsmp  = ((accum[doom_mixer._fb_iy    ]) << 16) | ((accum[doom_mixer._fb_iy + 1]) & 0xFFFF);
+        uint32_t lsmp2 = ((accum[doom_mixer._fb_iy + 2]) << 16) | ((accum[doom_mixer._fb_iy + 3]) & 0xFFFF);
+        uint32_t lsmp3 = ((accum[doom_mixer._fb_iy + 4]) << 16) | ((accum[doom_mixer._fb_iy + 5]) & 0xFFFF);
+        uint32_t lsmp4 = ((accum[doom_mixer._fb_iy + 6]) << 16) | ((accum[doom_mixer._fb_iy + 7]) & 0xFFFF);
+        *((uint32_t *)(&pcmbuf[doom_mixer._fb_iy    ])) = lsmp;
+        *((uint32_t *)(&pcmbuf[doom_mixer._fb_iy + 2])) = lsmp2;
+        *((uint32_t *)(&pcmbuf[doom_mixer._fb_iy + 4])) = lsmp3;
+        *((uint32_t *)(&pcmbuf[doom_mixer._fb_iy + 6])) = lsmp4;
+    }
 }
 
 /**********************************************************************/

@@ -62,7 +62,9 @@
 // STATUS BAR DATA
 //
 
-static uint16_t __attribute__((aligned(8))) stbar_pald[ST_WIDTH * ST_HEIGHT];
+
+//extern byte *big_pal;
+
 
 // Palette indices.
 // For damage/bonus red-/gold-shifts
@@ -487,18 +489,24 @@ cheatseq_t    cheat_mypos = { cheat_mypos_seq, 0 };
 // 
 extern char*    mapnames[];
 
+
+extern display_context_t _dc;
+extern void graphics_draw_text( display_context_t disp, int x, int y, const char * const msg );
+
 //
 // STATUS BAR CODE
 //
 void ST_Stop(void);
 
-extern void* bufptr;
+//static uint16_t stbar16[320*32];
+
 static inline void ST_refreshBackground()
 {
     if (st_statusbaron)
-    {
-        memcpy((uint16_t*)((uintptr_t)bufptr + (((ST_Y*SCREENWIDTH) + ST_X)*2)), stbar_pald, ST_WIDTH*ST_HEIGHT*2);
+    {// ST_X,0,BG
+        V_DrawPatch(ST_X, ST_Y, FG, sbar);
     }
+//    }
 }
 
 
@@ -654,7 +662,7 @@ ST_Responder (event_t* ev)
       else if (cht_CheckCheat(&cheat_mypos, ev->data1))
       {
     static char    buf[ST_MSGWIDTH];
-    sprintf(buf, "ang=0x%x;x,y=(0x%lx,0x%lx)",
+    sprintf(buf, "ang=0x%x;x,y=(0x%x,0x%x)",
         players[consoleplayer].mo->angle,
         players[consoleplayer].mo->x,
         players[consoleplayer].mo->y);
@@ -1119,8 +1127,6 @@ void ST_drawWidgets(boolean refresh)
     STlib_updateNum(&w_frags, refresh);
 }
 
-extern void I_SavePalette(void);
-extern void I_RestorePalette(void);
 
 int st_ft_c = 0;
 
@@ -1132,16 +1138,11 @@ void ST_doRefresh(void)
     else {
         st_firsttime = false;
     }
-
-    I_SavePalette();
-
     // draw status bar background to off-screen buff
     ST_refreshBackground();
 
     // and refresh all widgets
     ST_drawWidgets(true);
-
-    I_RestorePalette();
 }
 
 void ST_diffDraw(void)
@@ -1504,6 +1505,5 @@ void ST_Init (void)
 {
     veryfirsttime = 0;
     ST_loadData();
-    V_DrawPatchBuf(0, 0, sbar, stbar_pald);
     //screens[4] = (byte *) Z_Malloc(ST_WIDTH*ST_HEIGHT, PU_STATIC, 0);
 }

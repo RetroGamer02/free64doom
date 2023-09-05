@@ -3,7 +3,7 @@
 ---------------
 
 
-Updated 2023/05/21
+Updated 2023/05/14
 
 
 -------------------------
@@ -29,7 +29,7 @@ Updated 2023/05/21
 --------------
 -how to build-
 --------------
-Setup libdragon UNSTABLE branch: https://github.com/DragonMinded/libdragon/wiki/Installing-libdragon
+Setup libdragon: https://github.com/DragonMinded/libdragon/wiki/Installing-libdragon
 
 Get a copy of a supported version of Doom (Doom shareware, retail, Ultimate Doom, Doom II, Plutonia, TNT).
 
@@ -37,11 +37,11 @@ Export two environment variables:
 
 `IWAD_DIRECTORY` -- the path of the directory that contains your IWAD file
 
-`IWAD_PREFIX` -- the actual IWAD filename prefix (one of `DOOM1`, `DOOM`, `DOOMU`, `DOOM2`, `PLUTONIA`, `TNT` - these are case sensitive. Must be uppercase and your wad filename must be uppercase i.e. `DOOM2.WAD`)
+`IWAD_PREFIX` -- the actual IWAD filename prefix (one of `DOOM1`, `DOOM`, `DOOMU`, `DOOM2`, `PLUTONIA`, `TNT`)
 
 And run make.
 
-Result is `$(IWAD_PREFIX).z64` ready to copy to dev cart or run in emulator.
+Result is $(IWAD_PREFIX).z64 ready to copy to dev cart or run in emulator.
 
 Example for building DOOM2 from repo directory, with IWAD files located in your home directory under `IWADS`:
 
@@ -54,36 +54,6 @@ resulting in `DOOM2.z64`
 If you want to build for a different game version, be sure to run make clean first. Environment variables must be set for make clean as well.
 
 `env IWAD_DIRECTORY="." IWAD_PREFIX="." make clean`
-
-
------------
--SAVEGAMES-
------------
-
-64Doom uses the Controller Pak to save and load your game progress from the Save Game / Load Game menu options.
-
-One savegame slot is presented, mapped to a single note on the Controller Pak.
-
-The name of the note is the same as the game version (`$IWAD_PREFIX`) you are playing.
-
-When you save or load a game, you will see a message in the Doom HUD if it is successful:
-
-`SAVED GAME TO MEMPAK`
-
-`LOADED GAME FROM MEMPAK`
-
-Savegames are compressed using the lzfx library. However, the compressed saves are still large relative to the capacity of a fully-formatted Controller Pak. 
-
-In the event that there is not enough free space on the Controller Pak to save the game, you will see a message in the Doom HUD:
-
-`NOT ENOUGH SPACE FOR SAVE (NEED #, HAVE #)`
-
-It is very likely you will see this message if you have notes from other games on your Controller Pak, so it is desirable to play with a dedicated, initially empty
-Controller Pak. 
-
-It is possible that there are rare occasions where this may happen even with an empty Controller Pak. 
-
-If it does, kill some more enemies, pick up some more items, try again. :-)
 
 ----------
 -CONTROLS-
@@ -109,13 +79,15 @@ C UP :: toggle auto-map
 
 C DOWN :: ENTER key
 
-Z :: toggle run on/off (defaults to on)
+Z :: toggle run on/off
 
 A :: shoot
 
 B :: use (open doors, flip switches)
 
 START :: ESCAPE key
+
+L + R :: enable/disable debug output and GOD MODE
 
 
 Enjoy.

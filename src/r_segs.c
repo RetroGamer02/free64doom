@@ -32,7 +32,8 @@
 #include "r_local.h"
 #include "r_sky.h"
 
-#define tantoangle(x) ((angle_t)((-47*((x)*(x))) + (359628*(x)) - 3150270))
+extern char errstr[256];
+
 
 // OPTIMIZE: closed two sided lines as single sided
 
@@ -89,6 +90,9 @@ lighttable_t**    walllights;
 short*        maskedtexturecol;
 
 
+extern int *finesine2; // 10240
+extern int *finetan2; // 4096
+extern angle_t *tantoangle2; // 2049
 
 static inline const fixed_t
 R_PointToDist
@@ -111,10 +115,10 @@ R_PointToDist
         dy = temp;
     }
     
-    angle = ((tantoangle( FixedDiv(dy,dx)>>DBITS ))+ANG90) >> ANGLETOFINESHIFT;
+    angle = (tantoangle2[ FixedDiv(dy,dx)>>DBITS ]+ANG90) >> ANGLETOFINESHIFT;
 
     // use as cosine
-    dist = FixedDiv (dx, finesine(angle) );    
+    dist = FixedDiv (dx, finesine2[angle] );    
     
     return dist;
 }
@@ -287,7 +291,7 @@ void R_RenderSegLoop (void)
         {
             // calculate texture offset
             angle = (rw_centerangle + xtoviewangle[rw_x])>>ANGLETOFINESHIFT;
-            texturecolumn = rw_offset-FixedMul(finetangentf(angle),rw_distance);
+            texturecolumn = rw_offset-FixedMul(finetangent[angle],rw_distance);
             texturecolumn >>= FRACBITS;
             // calculate lighting
             index = rw_scale>>LIGHTSCALESHIFT;
@@ -436,7 +440,7 @@ R_StoreWallRange
 
     distangle = ANG90 - offsetangle;
     hyp = R_PointToDist (curline->v1->x, curline->v1->y);
-    sineval = finesine(distangle>>ANGLETOFINESHIFT);
+    sineval = finesine[distangle>>ANGLETOFINESHIFT];
     rw_distance = FixedMul (hyp, sineval);
 
     ds_p->x1 = rw_x = start;
@@ -632,7 +636,7 @@ R_StoreWallRange
         if (offsetangle > ANG90)
             offsetangle = ANG90;
 
-        sineval = finesine(offsetangle >>ANGLETOFINESHIFT);
+        sineval = finesine[offsetangle >>ANGLETOFINESHIFT];
         rw_offset = FixedMul (hyp, sineval);
 
         if (rw_normalangle-rw_angle1 < ANG180)
@@ -720,7 +724,7 @@ R_StoreWallRange
     if ( ((ds_p->silhouette & SIL_TOP) || maskedtexture)
      && !ds_p->sprtopclip)
     {
-        memcpy (lastopening, ceilingclip+start, 2*(rw_stopx-start));
+        D_memcpy (lastopening, ceilingclip+start, 2*(rw_stopx-start));
         ds_p->sprtopclip = lastopening - start;
         lastopening += rw_stopx - start;
     }
@@ -728,7 +732,7 @@ R_StoreWallRange
     if ( ((ds_p->silhouette & SIL_BOTTOM) || maskedtexture)
      && !ds_p->sprbottomclip)
     {
-        memcpy (lastopening, floorclip+start, 2*(rw_stopx-start));
+        D_memcpy (lastopening, floorclip+start, 2*(rw_stopx-start));
         ds_p->sprbottomclip = lastopening - start;
         lastopening += rw_stopx - start;
     }

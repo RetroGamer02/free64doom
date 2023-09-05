@@ -17,9 +17,9 @@
 // $Log:$
 //
 // DESCRIPTION:
-//    Gamma correction LUT stuff.
-//    Functions to draw patches (by post) directly to screen.
-//    Functions to blit a block to the screen.
+//	Gamma correction LUT stuff.
+//	Functions to draw patches (by post) directly to screen.
+//	Functions to blit a block to the screen.
 //
 //-----------------------------------------------------------------------------
 #include "z_zone.h"
@@ -36,12 +36,16 @@
 
 #include "v_video.h"
 
+extern uint16_t *buf16;
+extern uint32_t palarray[256];
+extern surface_t *_dc;
+
 #define ytab(y) (((y)<<8)+((y)<<6))
 
-extern uint32_t*      palarray;
-extern void*          bufptr;
+// Each screen is [SCREENWIDTH*SCREENHEIGHT];
+byte*	screens[5];
 
-int                  usegamma;
+int	__attribute__((aligned(8)))			dirtybox[4];
 
 // Now where did these came from?
 byte  __attribute__((aligned(8))) gammatable[5][256] =
@@ -129,19 +133,31 @@ byte  __attribute__((aligned(8))) gammatable[5][256] =
 };
 
 
+int	usegamma;
+
+
 //
 // V_MarkRect
 //
 void V_MarkRect(int x, int y, int width, int height)
 {
-    //M_AddToBox (dirtybox, x, y);
-    //M_AddToBox (dirtybox, x+width-1, y+height-1);
+//    M_AddToBox (dirtybox, x, y);
+ //   M_AddToBox (dirtybox, x+width-1, y+height-1);
 }
 
 //
 // V_CopyRect
 //
-void V_CopyRect( int srcx, int srcy, int srcscrn, int width, int height, int destx, int desty, int destscrn)
+void
+V_CopyRect
+( int		srcx,
+  int		srcy,
+  int		srcscrn,
+  int		width,
+  int		height,
+  int		destx,
+  int		desty,
+  int		destscrn)
 {
 }
 
@@ -150,105 +166,95 @@ void V_CopyRect( int srcx, int srcy, int srcscrn, int width, int height, int des
 // Masks a column based masked pic to the screen.
 //
 //__attribute__ ((optimize(1)))
-void V_DrawPatch ( int x, int y, patch_t* patch )
+ void
+V_DrawPatch
+( int		x,
+  int		y,
+  int		scrn,
+  patch_t*	patch )
 {
-    int          count;
-    int          col; 
-    column_t*    column; 
-    uint16_t*    desttop;
-    uint16_t*    dest;
-    byte*        source; 
-    int          w; 
+    int		count;
+    int		col; 
+    column_t*	column; 
+	byte*	source; 
+	int		w; 
 
-    y -= SHORT(patch->topoffset); 
-    x -= SHORT(patch->leftoffset); 
+    if (scrn)
+		return;
+
+	y -= SHORT(patch->topoffset); 
+	x -= SHORT(patch->leftoffset); 
+	col = 0; 
+	w = SHORT(patch->width); 
+
 #ifdef RANGECHECK 
-    if (x<0
-        ||x+SHORT(patch->width) >SCREENWIDTH
-        || y<0
-        || y+SHORT(patch->height)>SCREENHEIGHT)
-    {
-        fprintf( stderr, "Patch at %d,%d exceeds LFB\n", x,y );
-        // No I_Error abort - what is up with TNT.WAD?
-        fprintf( stderr, "V_DrawPatch: bad patch (ignored)\n");
-    }
-#endif
-
-    col = 0; 
-    desttop = (uint16_t*)((uintptr_t)bufptr + (uintptr_t)((((y)*SCREENWIDTH)+x)*2));
-
-    w = SHORT(patch->width); 
-
-    for ( ; col<w ; x++, col++, desttop++)
-    { 
-        column = (column_t *)((byte *)patch + LONG(patch->columnofs[col])); 
-
-        // step through the posts in a column 
-        while (column->topdelta != 0xff ) 
-        { 
-            source = (byte *)column + 3; 
-            dest = (uint16_t*)((uintptr_t)desttop + (uintptr_t)(column->topdelta*SCREENWIDTH*2)); 
-            count = column->length; 
-
-            while (count--) 
-            { 
-                *dest = palarray[*source++];
-                dest += SCREENWIDTH; 
-            } 
-            column = (column_t *)(  (byte *)column + column->length + 4 ); 
-        } 
-    }
-}
-
-
-void V_DrawPatchBuf ( int x, int y, patch_t* patch, uint16_t *buf)
-{
-    int          count;
-    int          col; 
-    column_t*    column;
-    uint16_t*    desttop;
-    uint16_t*    dest;
-    byte*        source; 
-    int          w; 
-
-    y -= SHORT(patch->topoffset); 
-    x -= SHORT(patch->leftoffset); 
-#ifdef RANGECHECK 
-    if (x<0
-        ||x+SHORT(patch->width) >SCREENWIDTH
-        || y<0
-        || y+SHORT(patch->height)>SCREENHEIGHT)
-    {
-        fprintf( stderr, "Patch at %d,%d exceeds LFB\n", x,y );
-        // No I_Error abort - what is up with TNT.WAD?
-        fprintf( stderr, "V_DrawPatch: bad patch (ignored)\n");
-    }
+	if (x<0
+	||x+SHORT(patch->width) >SCREENWIDTH
+	|| y<0
+	|| y+SHORT(patch->height)>SCREENHEIGHT 
+	|| (unsigned)scrn>4)
+	{
+	  I_Error("Patch at %d,%d exceeds LFB\n", x,y );
+	  // No I_Error abort - what is up with TNT.WAD?
+	  //fprintf( stderr, "V_DrawPatch: bad patch (ignored)\n");
+	  //return;
+	}
 #endif 
 
-    col = 0; 
-    desttop = (uint16_t*)((uintptr_t)buf + (uintptr_t)((((y)*SCREENWIDTH)+x)*2));
+	//if (scrn == 0) 
+	{
+		uint16_t*	desttop;
+		uint16_t*	dest;
 
-    w = SHORT(patch->width); 
+		desttop = 	(uint16_t*)((uintptr_t)buf16 + (uintptr_t)((((y+20)*SCREENWIDTH)+x)*2));
 
-    for ( ; col<w ; x++, col++, desttop++)
-    { 
-        column = (column_t *)((byte *)patch + LONG(patch->columnofs[col])); 
+		for ( ; col<w ; x++, col++, desttop++)
+		{ 
+			column = (column_t *)((byte *)patch + LONG(patch->columnofs[col])); 
+		 
+			// step through the posts in a column 
+			while (column->topdelta != 0xff ) 
+			{ 
+				source = (byte *)column + 3; 
+				dest = (uint16_t*)((uintptr_t)desttop + (uintptr_t)(column->topdelta*SCREENWIDTH*2)); 
+				count = column->length; 
+					 
+				while (count--) 
+				{ 
+					uint16_t next_spot = palarray[*source++];
+					*dest = next_spot; 
+					dest += SCREENWIDTH; 
+				} 
+				column = (column_t *)(  (byte *)column + column->length + 4 ); 
+			} 
+		}		
+	}
+/*	else {
+		byte*	desttop;
+		byte*	dest;
+		desttop = screens[scrn]+y*SCREENWIDTH+x;
+	
+        for ( ; col<w ; x++, col++, desttop++)
+        {
+            column = (column_t *)((byte *)patch + LONG(patch->columnofs[col]));
 
-        // step through the posts in a column 
-        while (column->topdelta != 0xff ) 
-        { 
-            source = (byte *)column + 3; 
-            dest = (uint16_t*)((uintptr_t)desttop + (uintptr_t)(column->topdelta*SCREENWIDTH*2)); 
-            count = column->length; 
+            // step through the posts in a column
+            while (column->topdelta != 0xff )
+            {
+                source = (byte *)column + 3;
+                dest = desttop + ytab(column->topdelta);
+                count = column->length;
 
-            while (count--) 
-            { 
-                *dest = palarray[*source++];
-                dest += SCREENWIDTH; 
-            } 
-            column = (column_t *)(  (byte *)column + column->length + 4 ); 
-        } 
-    }
+                while (count--)
+                {
+                    *dest = *source++;
+                    dest += SCREENWIDTH;
+                }
+
+                column = (column_t *)(  (byte *)column + column->length + 4 );
+            }
+        }
+    }*/
 }
 
 
@@ -257,56 +263,103 @@ void V_DrawPatchBuf ( int x, int y, patch_t* patch, uint16_t *buf)
 // Masks a column based masked pic to the screen.
 // Flips horizontally, e.g. to mirror face.
 //
-void V_DrawPatchFlipped ( int x, int y, patch_t* patch )
+void
+V_DrawPatchFlipped
+( int		x,
+  int		y,
+  int		scrn,
+  patch_t*	patch )
 {
-    int          count;
-    int          col;
-    column_t*    column;
-    uint16_t*    desttop;
-    uint16_t*    dest;
-    byte*        source;
-    int          w;
+    int		count;
+    int		col;
+    column_t*	column;
+    byte*	desttop;
+    byte*	dest;
+    byte*	source;
+    int		w;
+    uint16_t *dest16;
 
     y -= SHORT(patch->topoffset);
     x -= SHORT(patch->leftoffset);
-#ifdef RANGECHECK 
-    if (x<0
-        ||x+SHORT(patch->width) >SCREENWIDTH
-        || y<0
-        || y+SHORT(patch->height)>SCREENHEIGHT)
-    {
-        fprintf( stderr, "Patch origin %d,%d exceeds LFB\n", x,y );
-        I_Error ("Bad V_DrawPatch in V_DrawPatchFlipped");
-    }
-#endif
+
+    uint32_t y_o = y;
+
+// if (!scrn)
+//	V_MarkRect (x, y, SHORT(patch->width), SHORT(patch->height));
 
     col = 0;
-    desttop = (uint16_t*)((uintptr_t)bufptr + (uintptr_t)((((y)*SCREENWIDTH)+x)*2));
+    desttop = screens[scrn]+y*SCREENWIDTH+x;
 
     w = SHORT(patch->width);
 
-    for ( ; col<w ; x++, col++, desttop++)
+    //if (scrn == 0)
     {
-        column = (column_t *)((byte *)patch + LONG(patch->columnofs[w-1-col]));
-
-        // step through the posts in a column
-        while (column->topdelta != 0xff )
+        for ( ; col<w ; x++, col++)
         {
-            y+=column->topdelta;
+            column = (column_t *)((byte *)patch + LONG(patch->columnofs[w-1-col]));
 
-            source = (byte *)column + 3;
-            dest = (uint16_t*)((uintptr_t)desttop + (uintptr_t)(column->topdelta*SCREENWIDTH*2)); 
-            count = column->length;
-
-            while (count--)
+            // step through the posts in a column
+            while (column->topdelta != 0xff )
             {
-                *dest = palarray[*source++];
-                dest += SCREENWIDTH; 
-            }
+                y+=column->topdelta;
 
-            column = (column_t *)(  (byte *)column + column->length + 4 );
+                source = (byte *)column + 3;
+
+                count = column->length;
+
+                while (count--)
+                {
+                    uint16_t mapped_spot = palarray[*source++];
+                    dest16 = (uint16_t *)((uintptr_t)_dc->buffer +(ytab(SCREENWIDTH>>3)) + (( (x)+(ytab(y)) )<<1));
+                    *dest16 = mapped_spot;
+                    y++;
+                }
+
+                y = y_o;
+                column = (column_t *)(  (byte *)column + column->length + 4 );
+            }
         }
     }
+#if 0
+    else
+    {
+        for ( ; col<w ; x++, col++, desttop++)
+        {
+            column = (column_t *)((byte *)patch + LONG(patch->columnofs[w-1-col]));
+
+            // step through the posts in a column
+            while (column->topdelta != 0xff )
+            {
+                source = (byte *)column + 3;
+                dest = desttop + ytab(column->topdelta);//*SCREENWIDTH;
+                count = column->length;
+                while (count--)
+                {
+                    *dest = *source++;
+                    dest += SCREENWIDTH;
+                }
+
+                column = (column_t *)(  (byte *)column + column->length + 4 );
+            }
+        }
+    }
+#endif    
+}
+
+
+
+//
+// V_DrawPatchDirect
+// Draws directly to the screen on the pc.
+//
+void
+V_DrawPatchDirect
+( int		x,
+  int		y,
+  int		scrn,
+  patch_t*	patch )
+{
+    V_DrawPatch (x, y, scrn, patch);
 }
 
 
@@ -318,12 +371,11 @@ void
 V_DrawBlock
 ( int		x,
   int		y,
+  int		scrn,
   int		width,
   int		height,
-  uint16_t*		src )
+  byte*		src )
 {
-    // hack for f_wipe
-    memcpy(bufptr, src, 320*200*2);
 }
 
 
@@ -335,12 +387,11 @@ void
 V_GetBlock
 ( int		x,
   int		y,
+  int		scrn,
   int		width,
   int		height,
-  uint16_t*		dest )
+  byte*		dest )
 {
-    // hack for f_wipe
-    memcpy(dest, bufptr, 320*200*2);
 }
 
 
@@ -349,4 +400,15 @@ V_GetBlock
 //
 void V_Init (void)
 {
+    int		i;
+    byte*	base;
+
+    // stick these in low dos memory on PCs
+    base = I_AllocLow(SCREENWIDTH*SCREENHEIGHT);
+
+    for (i=0 ; i<3 ; i++)
+    {
+	screens[i] = base;//+(i*SCREENHEIGHT*SCREENWIDTH); 
+	// trust me on this, we render to n64 cfb
+    }
 }

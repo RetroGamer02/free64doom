@@ -175,8 +175,8 @@ void I_InitNetwork (void)
     int			p;
 */
 	
-    doomcom = (doomcom_t*)malloc (sizeof (*doomcom));
-    memset (doomcom, 0, sizeof(*doomcom));
+    doomcom = malloc (sizeof (*doomcom) );
+    D_memset (doomcom, 0, sizeof(*doomcom) );
     
     // set up for network
 /*    i = M_CheckParm ("-dup");

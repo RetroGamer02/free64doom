@@ -41,7 +41,6 @@
 #include "sounds.h"
 
 
-
 fixed_t		tmbbox[4];
 mobj_t*		tmthing;
 int		tmflags;
@@ -622,10 +621,10 @@ void P_HitSlideLine (line_t* ld)
     deltaangle >>= ANGLETOFINESHIFT;
 	
     movelen = P_AproxDistance (tmxmove, tmymove);
-    newlen = FixedMul (movelen, finecosine(deltaangle));
+    newlen = FixedMul (movelen, finecosine[deltaangle]);
 
-    tmxmove = FixedMul (newlen, finecosine(lineangle));	
-    tmymove = FixedMul (newlen, finesine(lineangle));	
+    tmxmove = FixedMul (newlen, finecosine[lineangle]);	
+    tmymove = FixedMul (newlen, finesine[lineangle]);	
 }
 
 
@@ -1030,8 +1029,8 @@ P_AimLineAttack
     angle >>= ANGLETOFINESHIFT;
     shootthing = t1;
     
-    x2 = t1->x + (distance>>FRACBITS)*finecosine(angle);
-    y2 = t1->y + (distance>>FRACBITS)*finesine(angle);
+    x2 = t1->x + (distance>>FRACBITS)*finecosine[angle];
+    y2 = t1->y + (distance>>FRACBITS)*finesine[angle];
     shootz = t1->z + (t1->height>>1) + 8*FRACUNIT;
 
     // can't shoot outside view angles
@@ -1072,8 +1071,8 @@ P_LineAttack
     angle >>= ANGLETOFINESHIFT;
     shootthing = t1;
     la_damage = damage;
-    x2 = t1->x + (distance>>FRACBITS)*finecosine(angle);
-    y2 = t1->y + (distance>>FRACBITS)*finesine(angle);
+    x2 = t1->x + (distance>>FRACBITS)*finecosine[angle];
+    y2 = t1->y + (distance>>FRACBITS)*finesine[angle];
     shootz = t1->z + (t1->height>>1) + 8*FRACUNIT;
     attackrange = distance;
     aimslope = slope;
@@ -1140,8 +1139,8 @@ void P_UseLines (player_t*	player)
 
     x1 = player->mo->x;
     y1 = player->mo->y;
-    x2 = x1 + (USERANGE>>FRACBITS)*finecosine(angle);
-    y2 = y1 + (USERANGE>>FRACBITS)*finesine(angle);
+    x2 = x1 + (USERANGE>>FRACBITS)*finecosine[angle];
+    y2 = y1 + (USERANGE>>FRACBITS)*finesine[angle];
 	
     P_PathTraverse ( x1, y1, x2, y2, PT_ADDLINES, PTR_UseTraverse );
 }

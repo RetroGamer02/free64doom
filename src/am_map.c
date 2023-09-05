@@ -49,11 +49,9 @@
 
 #include <libdragon.h>
 
-extern void graphics_draw_line(surface_t* disp, int x0, int y0, int x1, int y1, uint32_t color);
-
-extern uint32_t*     palarray;
-extern surface_t*    _dc;
-extern void*         bufptr;
+extern void graphics_draw_line( display_context_t disp, int x0, int y0, int x1, int y1, uint32_t color );
+extern uint32_t palarray[256];
+extern surface_t *_dc;
 
 // For use if I do walls with outsides/insides
 #define REDS        (256-5*16)
@@ -128,7 +126,7 @@ extern void*         bufptr;
 #define MTOF(x) (FixedMul((x),scale_mtof)>>16)
 // translates between frame-buffer and map coordinates
 #define CXMTOF(x)  (f_x + MTOF((x)-m_x))
-#define CYMTOF(y)  ((f_y + (f_h - MTOF((y)-m_y))))
+#define CYMTOF(y)  ((f_y + (f_h - MTOF((y)-m_y)))+20)
 
 // the following is crap
 #define LINE_NEVERSEE ML_DONTDRAW
@@ -313,6 +311,13 @@ static boolean stopped = true;
 extern boolean viewactive;
 
 //extern void V_MarkRect(int x, int y, int width, int height);
+
+
+extern int *finesine2; // 10240
+extern int *finetan2; // 4096
+extern angle_t *tantoangle2; // 2049
+
+
 
 // Calculates the slope and slope according to the x-axis of a line
 // segment in map coordinates (with the upright y-axis n' all) so
@@ -888,16 +893,13 @@ void AM_Ticker (void)
     AM_updateLightLev();
 }
 
-// status bar height at bottom of screen
-#define SBARHEIGHT            32
-
 
 //
 // Clear automap frame buffer.
 //
 void AM_clearFB(int color)
 {
-    memset(bufptr, 0, SCREENWIDTH*(SCREENHEIGHT-SBARHEIGHT)*2);
+    D_memset((uint16_t *)((uintptr_t)_dc->buffer + (20*320*2)), 0, 320*220*2);
 }
 
 
@@ -1050,7 +1052,7 @@ AM_drawMline
 
     if (AM_clipMline(ml, &fl))
     {
-        graphics_draw_line(_dc, fl.a.x, fl.a.y, fl.b.x, fl.b.y, palarray[color]);
+        graphics_draw_line(_dc, fl.a.x, fl.a.y+20, fl.b.x, fl.b.y+20, palarray[color]);
     }
 }
 
@@ -1163,8 +1165,8 @@ AM_rotate
   angle_t    a )
 {
     fixed_t tmpx;
-    tmpx = FixedMul(*x,finecosine(a>>ANGLETOFINESHIFT)) - FixedMul(*y,finesine(a>>ANGLETOFINESHIFT));
-    *y = FixedMul(*x,finesine(a>>ANGLETOFINESHIFT)) + FixedMul(*y,finecosine(a>>ANGLETOFINESHIFT));
+    tmpx = FixedMul(*x,finecosine[a>>ANGLETOFINESHIFT]) - FixedMul(*y,finesine2[a>>ANGLETOFINESHIFT]);
+    *y = FixedMul(*x,finesine2[a>>ANGLETOFINESHIFT]) + FixedMul(*y,finecosine[a>>ANGLETOFINESHIFT]);
     *x = tmpx;
 }
 
@@ -1290,7 +1292,7 @@ void AM_drawMarks(void)
             fx = CXMTOF(markpoints[i].x);
             fy = CYMTOF(markpoints[i].y);
             if (fx >= f_x && fx <= f_w - w && fy >= f_y && fy <= f_h - h)
-            V_DrawPatch(fx>>1, fy>>1, marknums[i]);
+            V_DrawPatch(fx>>1, fy>>1, FB, marknums[i]);
         }
     }
 }

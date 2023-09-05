@@ -44,9 +44,6 @@
 #include "p_inter.h"
 
 
-
-
-
 #define BONUSADD	6
 
 
@@ -655,12 +652,10 @@ P_TouchSpecialThing
 	player->message = GOTSHOTGUN2;
 	sound = sfx_wpnup;	
 	break;
-      default:
 #ifdef RANGECHECK
+      default:
 	I_Error ("P_TouchSpecialThing: Unknown gettable thing");
 #endif
-    goto P_TouchSpecialThing_end;
-    break;
     }
 	
     if (special->flags & MF_COUNTITEM)
@@ -669,8 +664,6 @@ P_TouchSpecialThing
     player->bonuscount += BONUSADD;
     if (player == &players[consoleplayer])
 	S_StartSound (NULL, sound);
-P_TouchSpecialThing_end:
-	return;
 }
 
 
@@ -840,8 +833,8 @@ P_DamageMobj
 	}
 		
 	ang >>= ANGLETOFINESHIFT;
-	target->momx += FixedMul (thrust, finecosine(ang));
-	target->momy += FixedMul (thrust, finesine(ang));
+	target->momx += FixedMul (thrust, finecosine[ang]);
+	target->momy += FixedMul (thrust, finesine[ang]);
     }
     
     // player specific

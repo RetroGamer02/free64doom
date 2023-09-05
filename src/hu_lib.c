@@ -116,7 +116,7 @@ HUlib_drawTextLine
 			w = SHORT(l->f[c - l->sc]->width);
 			if (x+w > SCREENWIDTH)
 			break;
-			V_DrawPatch(x, l->y, l->f[c - l->sc]);
+			V_DrawPatchDirect(x, l->y, FG, l->f[c - l->sc]);
 			x += w;
 		}
 		else
@@ -130,15 +130,10 @@ HUlib_drawTextLine
     // draw the cursor if requested
     if (drawcursor && x + SHORT(l->f['_' - l->sc]->width) <= SCREENWIDTH)
     {
-		V_DrawPatch(x, l->y, l->f['_' - l->sc]);
+		V_DrawPatchDirect(x, l->y, FG, l->f['_' - l->sc]);
     }
 }
 
-#include "w_wad.h"
-#include "z_zone.h"
-
-extern void I_SavePalette(void);
-extern void I_RestorePalette(void);
 
 // sorta called by HU_Erase and just better darn get things straight
 void HUlib_eraseTextLine(hu_textline_t* l)
@@ -149,14 +144,13 @@ void HUlib_eraseTextLine(hu_textline_t* l)
     // Only erases when NOT in automap and the screen is reduced,
     // and the text must either need updating or refreshing
     // (because of a recent change back from the automap)
-    if (!automapactive && viewwindowx && l->needsupdate)
+    if (!automapactive &&
+	viewwindowx && l->needsupdate)
     {
 		lh = SHORT(l->f[0]->height) + 1;
 
-    I_SavePalette();
 		for (y=l->y,yoffset=y*SCREENWIDTH ; y<l->y+(lh) ; y++,yoffset+=SCREENWIDTH)
 		{
-
 			if (y < viewwindowy || y >= viewwindowy + viewheight)
 				R_VideoErase(yoffset, SCREENWIDTH); // erase entire line
 			else
@@ -166,22 +160,6 @@ void HUlib_eraseTextLine(hu_textline_t* l)
 				// erase right border
 			}
 		}
-    // fix the flickering top edge and corners of the border
-    // hacked up how the background erase/draw works so this is needed now...
-    for (int x=0 ; x<scaledviewwidth ; x+=8)
-    {
-      V_DrawPatch (viewwindowx+x,viewwindowy-8,W_CacheLumpName ("brdr_t",PU_CACHE));
-    }
-    V_DrawPatch (viewwindowx-8,viewwindowy,W_CacheLumpName ("brdr_l",PU_CACHE));
-    V_DrawPatch (viewwindowx+scaledviewwidth,viewwindowy,W_CacheLumpName ("brdr_r",PU_CACHE));
-    V_DrawPatch (viewwindowx-8,
-       viewwindowy-8,
-       W_CacheLumpName ("brdr_tl",PU_CACHE));
-
-    V_DrawPatch (viewwindowx+scaledviewwidth,
-       viewwindowy-8,
-       W_CacheLumpName ("brdr_tr",PU_CACHE));
-    I_RestorePalette();
     }
 
     if (l->needsupdate)
