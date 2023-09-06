@@ -77,7 +77,6 @@ char commercial_banner[] =
                 "1-800-388-PIR8\n"
                 "==================================\n";
 
-extern uint16_t *buf16;
 extern int return_from_D_DoomMain;
 
 unsigned long I_GetTime(void);    
@@ -401,7 +400,6 @@ void D_DoomLoop(void)
         S_UpdateSounds(players[consoleplayer].mo);// move positional sounds
 
         _dc = lockVideo(1);
-        buf16 = (uint16_t *)_dc->buffer;
         D_Display();
         unlockVideo(_dc);
     }
@@ -860,7 +858,7 @@ void D_DoomMain(void)
     for(int i=0;i<2;i++)
     {
         _dc = lockVideo(1);
-        D_memset(_dc->buffer, 0, 320*240*2);
+        D_memset(_dc->buffer, 0, SCREENWIDTH*SCREENHEIGHT*2);
         unlockVideo(_dc);
     }
 

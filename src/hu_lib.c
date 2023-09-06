@@ -134,6 +134,12 @@ HUlib_drawTextLine
     }
 }
 
+#include "w_wad.h"
+#include "z_zone.h"
+
+extern void I_SavePalette(void);
+extern void I_SetDefaultPalette(void);
+extern void I_RestorePalette(void);
 
 // sorta called by HU_Erase and just better darn get things straight
 void HUlib_eraseTextLine(hu_textline_t* l)
@@ -151,6 +157,8 @@ void HUlib_eraseTextLine(hu_textline_t* l)
 
 		for (y=l->y,yoffset=y*SCREENWIDTH ; y<l->y+(lh) ; y++,yoffset+=SCREENWIDTH)
 		{
+      I_SavePalette();
+      I_SetDefaultPalette();
 			if (y < viewwindowy || y >= viewwindowy + viewheight)
 				R_VideoErase(yoffset, SCREENWIDTH); // erase entire line
 			else
@@ -159,6 +167,25 @@ void HUlib_eraseTextLine(hu_textline_t* l)
 				R_VideoErase(yoffset + viewwindowx + viewwidth, viewwindowx);
 				// erase right border
 			}
+
+      // fix the flickering top edge and corners of the border
+      // hacked up how the background erase/draw works so this is needed now...
+      for (int x=0 ; x<scaledviewwidth ; x+=8)
+      {
+        V_DrawPatch (viewwindowx+x,viewwindowy-8,0,W_CacheLumpName ("brdr_t",PU_CACHE));
+      }
+      V_DrawPatch (viewwindowx-8,viewwindowy,0,W_CacheLumpName ("brdr_l",PU_CACHE));
+      V_DrawPatch (viewwindowx+scaledviewwidth,viewwindowy,0,W_CacheLumpName ("brdr_r",PU_CACHE));
+      V_DrawPatch (viewwindowx-8,
+         viewwindowy-8,
+         0,
+         W_CacheLumpName ("brdr_tl",PU_CACHE));
+
+      V_DrawPatch (viewwindowx+scaledviewwidth,
+         viewwindowy-8,
+         0,
+         W_CacheLumpName ("brdr_tr",PU_CACHE));
+      I_RestorePalette();
 		}
     }
 

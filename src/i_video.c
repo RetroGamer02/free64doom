@@ -46,24 +46,32 @@ void I_FinishUpdate(void);
 
 
 // globals
+
+// this is intentionally uint32_t
+// graphics_make_color will pack two 16-bit colors into a 32-bit word
+// and we use that full word when rendering columns and spans in low-detail mode
+// the color lookup is a single index into palarray
+// no shifting and masking necessary to create a doubled pixel
+// and it gets written to the 16-bit framebuffer as two pixels with a single 32-bit write
 uint32_t __attribute__((aligned(8))) palarray[256];
 
+// I don't want to rename this across the code base, it used to be display_context_t 
+// I started this port with libdragon in 2014
+// it did not expose a pointer to the buffer display_context_t was associated with
+// and I had to use __safe_buffer[_dc-1] to access it directly
+// I really like libdragon 9 years later though, much nicer
 surface_t *_dc;
 
 surface_t *lockVideo(int wait)
 {
-    surface_t *dc;
-
     if (wait)
     {
-        while (!(dc = display_lock()));
+        return display_get();
     }
     else
     {
-        dc = display_lock();
+        return display_try_get();
     }
-
-    return dc;
 }
 
 void unlockVideo(surface_t *dc)
@@ -108,6 +116,18 @@ void I_ForcePaletteUpdate(void)
 //
 // I_SetPalette
 //
+static uint32_t old_palette[256];
+
+void I_SavePalette(void)
+{
+    memcpy(old_palette, palarray, sizeof(palarray));
+}
+
+void I_RestorePalette(void)
+{
+    memcpy(palarray, old_palette, sizeof(old_palette));
+}
+
 void I_SetPalette(byte* palette)
 {
     const byte *gammaptr = gammatable[usegamma];
@@ -115,6 +135,7 @@ void I_SetPalette(byte* palette)
     byte r,g,b;
     unsigned int i;
 
+    // this is ugly from a well-intentioned but probably pointless attempt to make it oPtImIzEd 
     for (i = 0; i < 768/12; i++) {
 
 		uint32_t fc1 = *(uint32_t *)(&palette[i*12]);
@@ -161,10 +182,21 @@ void I_SetPalette(byte* palette)
 	palette += 256*3;
 }
 
+#include "z_zone.h"
+#include "w_wad.h"
+void I_SetDefaultPalette(void)
+{
+    I_SetPalette(W_CacheLumpName ("PLAYPAL",PU_CACHE));
+}
 
 void I_InitGraphics(void)
 {
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+    display_init( (resolution_t)
+	{
+		.width = SCREENWIDTH,
+		.height = SCREENHEIGHT,
+		.interlaced = false,
+	}, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
 }
 
 
@@ -199,6 +231,6 @@ void DebugOutput_String_For_IError(const char *str, int lineNumber, int good)
         {
             strncpy(copied_line, str + ((i-1)*ERROR_LINE_LEN), ERROR_LINE_LEN);
         }
-        graphics_draw_text(_dc, 20, 16+((lineNumber+i)*8), copied_line);
+        graphics_draw_text(_dc, 0, 16+((lineNumber+i)*8), copied_line);
     }
 }

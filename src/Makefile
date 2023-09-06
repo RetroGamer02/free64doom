@@ -18,8 +18,7 @@ LINK_FLAGS = -G4 -L$(ROOTDIR)/mips64-elf/lib $(LIBS) -Tn64.ld
 PROG_NAME = $(IWAD_PREFIX)
 OPTFLAG = -O3
 
-CFLAGS = -Wall -g -mabi=o64 -mno-shared -mno-abicalls -mno-branch-likely -mno-llsc -mno-check-zero-division -mfix4300 -std=gnu99 -march=vr4300 -mtune=vr4300 -mips3 -G4 $(OPTFLAG) -I$(ROOTDIR)/mips64-elf/include 
-#-DRANGECHECK
+CFLAGS = -falign-functions=16 -Werror -Wno-error=format-overflow= -Wno-error=switch -Wno-dangling-pointer -Wno-implicit-function-declaration -Wno-maybe-uninitialized -Wno-unused-variable -Wall -g -mabi=o64 -mno-shared -mno-abicalls -mno-branch-likely -mno-llsc -mno-check-zero-division -mfix4300 -std=gnu99 -march=vr4300 -mtune=vr4300 -mips3 -G4 $(OPTFLAG) -I$(ROOTDIR)/mips64-elf/include -DRANGECHECK
 
 CC = $(GCCN64PREFIX)gcc
 AS = $(GCCN64PREFIX)as
