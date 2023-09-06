@@ -136,7 +136,8 @@ int main(int argc, char **argv)
     center_y = pressed.y;
 
     printf("64Doom by jnmartin84\n");
-    printf("github.com/jnmartin84/64doom/\n");
+    printf("Free64Doom by RetroGamer02\n");
+    printf("github.com/RetroGamer02/free64doom/\n");
     printf("built %s %s\n", __DATE__, __TIME__);
 
     int available_memory_size = get_memory_size();

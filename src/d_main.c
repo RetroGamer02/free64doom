@@ -72,9 +72,7 @@ char shareware_banner[]  =
                 "==================================\n";
 char commercial_banner[] =    
                 "==================================\n"
-                "Commercial product - do not distribute!\n"
-                "Please report software piracy to the SPA:\n"
-                "1-800-388-PIR8\n"
+                "OpenSource product - do distribute!\n"
                 "==================================\n";
 
 extern int return_from_D_DoomMain;
@@ -740,7 +738,7 @@ void D_DoomMain(void)
     {
         case retail:
     sprintf (title,
-         "The Ultimate DOOM Startup v%i.%i",
+         "FreeDoom Phase 1 Startup v%i.%i",
          VERSION/100,VERSION%100);
     break;
       case shareware:
@@ -755,7 +753,7 @@ void D_DoomMain(void)
     break;
       case commercial:
     sprintf (title,
-         "DOOM 2: Hell on Earth v%i.%i",
+         "FreeDoom Phase 2 v%i.%i",
          VERSION/100,VERSION%100);
     break;
       default:
