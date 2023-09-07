@@ -1,0 +1,7 @@
+
+*.elf
+*.zip
+*.bin
+obj
+*.dfs
+*.z64

@@ -202,6 +202,12 @@ void pressed_key(struct controller_data *p_data) //, int player)
         doom_input_event.type = ev_keydown;
         D_PostEvent(&doom_input_event);
     }
+    if (pressed.Z)
+    {
+        doom_input_event.data1 = KEY_RCTRL;
+        doom_input_event.type = ev_keydown;
+        D_PostEvent(&doom_input_event);
+    }
     if (pressed.L && !pressed.R && !pressed.Z)
     {
         doom_input_event.data1 = ',';
@@ -308,6 +314,12 @@ void released_key(struct controller_data *r_data) //, int player)
     if (released.B)
     {
         doom_input_event.data1 = ' ';
+        doom_input_event.type = ev_keyup;
+        D_PostEvent(&doom_input_event);
+    }
+    if (released.Z)
+    {
+        doom_input_event.data1 = KEY_RCTRL;
         doom_input_event.type = ev_keyup;
         D_PostEvent(&doom_input_event);
     }
