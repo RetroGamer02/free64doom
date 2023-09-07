@@ -414,12 +414,8 @@ void HU_Stop(void)
 extern GameMode_t current_mode;
 
 extern char *get_GAMEID();
-extern    char*	doom1wad;
-extern    char*	doomwad;
 extern    char*	doomuwad;
 extern    char*	doom2wad;
-extern    char*	plutoniawad;
-extern    char*	tntwad;
 #define stricmp strcasecmp
 
 void HU_Start(void)
@@ -453,14 +449,6 @@ void HU_Start(void)
 	if (!stricmp(doom2wad,gameid))
 	{
 		s = HU_TITLE2;
-	}
-	else if (!stricmp(plutoniawad,gameid))
-	{
-		s = HU_TITLEP;
-	}
-	else if (!stricmp(tntwad,gameid))
-	{
-		s = HU_TITLET;
 	}
 	else
 	{

@@ -72,15 +72,12 @@ char shareware_banner[]  =
                 "==================================\n";
 char commercial_banner[] =    
                 "==================================\n"
-                "OpenSource product - do distribute!\n"
+                "Open Source product - do distribute!\n"
                 "==================================\n";
 
 extern int return_from_D_DoomMain;
 
 unsigned long I_GetTime(void);    
-
-extern surface_t* lockVideo(int wait);
-extern void unlockVideo(surface_t* dc);
 
 extern volatile uint64_t timekeeping;
 
@@ -208,8 +205,11 @@ void D_Display(void)
     static  boolean        fullscreen = false;
     static  gamestate_t    oldgamestate = -1;
     static  int            borderdrawcount;
+            int            nowtime;
+            int            tics;
             int            y;
-//          boolean        done;
+            int            wipestart;
+            boolean        done;
             boolean        wipe;
             boolean        redrawsbar;
 
@@ -234,6 +234,7 @@ void D_Display(void)
     if (gamestate != wipegamestate)
     {
         wipe = true;
+        wipe_StartScreen(0, 0, SCREENWIDTH, SCREENHEIGHT); 
     }
     else
     {
@@ -282,21 +283,18 @@ void D_Display(void)
 
         case GS_INTERMISSION:
         {
-            I_SetPalette(W_CacheLumpName ("PLAYPAL",PU_CACHE));
             WI_Drawer();
             break;
         }
 
         case GS_FINALE:
         {
-            I_SetPalette(W_CacheLumpName ("PLAYPAL",PU_CACHE));
             F_Drawer();
             break;
         }
 
         case GS_DEMOSCREEN:
         {
-            I_SetPalette(W_CacheLumpName ("PLAYPAL",PU_CACHE));
             D_PageDrawer();
             break;
         }
@@ -316,6 +314,7 @@ void D_Display(void)
     // clean up border stuff
     if ((gamestate != oldgamestate) && (gamestate != GS_LEVEL))
     {
+        I_SetPalette(W_CacheLumpName ("PLAYPAL",PU_CACHE));
     }
 
     // see if the border needs to be initially drawn
@@ -356,15 +355,53 @@ void D_Display(void)
             y = viewwindowy+4;
         }
 
-        V_DrawPatchDirect(viewwindowx+((scaledviewwidth-68)/2),y,0,W_CacheLumpName("M_PAUSE", PU_CACHE));
+        V_DrawPatch(viewwindowx+((scaledviewwidth-68)/2),y,W_CacheLumpName("M_PAUSE", PU_CACHE));
     }
 
     // menus go directly to the screen
     M_Drawer(); // menu is drawn even on top of everything
 
     NetUpdate(); // send out any new accumulation
+
+    if (!wipe)
+    {
+        I_FinishUpdate();
+        return;
+    }
+
+    // wipe update
+    wipe_EndScreen(0, 0, SCREENWIDTH, SCREENHEIGHT);
+
+    wipestart = I_GetTime () - 1;
+
+    do
+    {
+        do
+        {
+            nowtime = I_GetTime ();
+            tics = nowtime - wipestart;
+        }
+        while (!tics);
+
+        wipestart = nowtime;
+        done = wipe_ScreenWipe(wipe_Melt, 0, 0, SCREENWIDTH, SCREENHEIGHT, tics);
+
+        M_Drawer ();    // menu is drawn even on top of wipes
+
+        I_FinishUpdate();
+        I_StartFrame();
+    }
+    while (!done);    
+
+    I_FinishUpdate();
 }
 
+// use this to hold _dc->buffer pointer whenever we get a surface in D_DoomLoop
+// now each R_DrawColumn/R_DrawSpan call only needs one "lw" instruction to get screen
+// instead of two
+// saves (num cols + num spans) "lw" instructions per rendered frame
+// that is 1000+ loads per frame
+void *bufptr;
 
 //
 //  D_DoomLoop
@@ -375,6 +412,7 @@ void D_DoomLoop(void)
 
     while (!return_from_D_DoomMain)
     {
+        I_StartFrame();
         // process one or more tics
         if (singletics)
         {
@@ -397,9 +435,7 @@ void D_DoomLoop(void)
 
         S_UpdateSounds(players[consoleplayer].mo);// move positional sounds
 
-        _dc = lockVideo(1);
         D_Display();
-        unlockVideo(_dc);
     }
 }
 
@@ -430,7 +466,7 @@ void D_PageTicker(void)
 //
 void D_PageDrawer(void)
 {
-    V_DrawPatch(0,0,0,W_CacheLumpName(pagename, PU_CACHE));
+    V_DrawPatch(0,0,W_CacheLumpName(pagename, PU_CACHE));
 }
 
 
@@ -564,14 +600,12 @@ char title[128];
 //
 void D_AddFile(char *file)
 {
-//    int numwadfiles;
-//    for (numwadfiles = 0 ; wadfiles[numwadfiles] ; numwadfiles++)
-//    {
-//        ;
-//    }
-//    wadfiles[numwadfiles] = file;
-
-    wadfiles[0] = file;
+    int numwadfiles;
+    for (numwadfiles = 0 ; wadfiles[numwadfiles] ; numwadfiles++)
+    {
+        ;
+    }
+    wadfiles[numwadfiles] = file;
 }
 
 static char __attribute__((aligned(8))) gameid[16];
@@ -589,13 +623,15 @@ char *get_GAMEID()
     }
     memset(gameid,0,16);
 
-    if (len != dfs_read(gameid, len, 1, fd))
+    if (len != dfs_read(gameid, sizeof(char), len, fd))
     {
         I_Error("get_GAMEID: DFS could not read identifier file after opening.\n");
     }
     dfs_close(fd);
 
-    for (size_t i=0;i<16;i++)
+
+    // deal with newlines or other stray characters after the end of the filename
+    for (size_t i=0;i<len;i++)
     {
         if (!(
             ('a' <= gameid[i] && gameid[i] <= 'z') ||
@@ -604,6 +640,7 @@ char *get_GAMEID()
             ('.' == gameid[i]) ))
         {
             gameid[i] = '\0';
+            break;
         }
     }
 
@@ -619,30 +656,14 @@ extern GameMode_t current_mode;
 // to determine whether registered/commercial features
 // should be executed (notably loading PWAD's).
 //
-char*    doom1wad = "DOOM1.WAD";
-char*    doomwad = "DOOM.WAD";
-char*    doomuwad = "DOOMU.WAD";
-char*    doom2wad = "DOOM2.WAD";
-
-char*    doom2fwad = "DOOM2F.WAD";
-char*    plutoniawad = "PLUTONIA.WAD";
-char*    tntwad = "TNT.WAD";
+char*    doomuwad = "FREEDOOM1.WAD";
+char*    doom2wad = "FREEDOOM2.WAD";
 
 void IdentifyVersion(void)
 {
     const char *gameid = get_GAMEID();
 
     printf("IdentifyVersion: %s\n", gameid);
-
-    if (!stricmp(doom2fwad,gameid))
-    {
-        gamemode = commercial;
-        // C'est ridicule!
-        // Let's handle languages in config files, okay?
-        language = french;
-        D_AddFile(doom2fwad);
-        return;
-    }
 
     if (!stricmp(doom2wad,gameid))
     {
@@ -652,43 +673,11 @@ void IdentifyVersion(void)
         return;
     }
 
-    if (!stricmp(plutoniawad,gameid))
-    {
-        gamemode = commercial;
-        current_mode = pack_plut;
-        D_AddFile(plutoniawad);
-        return;
-    }
-
-    if (!stricmp(tntwad,gameid))
-    {
-        gamemode = commercial;
-        current_mode = pack_tnt;
-        D_AddFile(tntwad);
-        return;
-    }
-
     if (!stricmp(doomuwad,gameid))
     {
         gamemode = retail;
         current_mode = commercial;
         D_AddFile(doomuwad);
-        return;
-    }
-
-    if (!stricmp(doomwad,gameid))
-    {
-        gamemode = registered;
-        current_mode = commercial;
-        D_AddFile(doomwad);
-        return;
-    }
-
-    if (!stricmp(doom1wad,gameid))
-    {
-        gamemode = shareware;
-        current_mode = commercial;
-        D_AddFile(doom1wad);
         return;
     }
 
@@ -723,45 +712,23 @@ void D_DoomMain(void)
         deathmatch = 1;
     }
 
-    if (current_mode == pack_plut) {
-    sprintf (title,
-         "DOOM 2: Plutonia Experiment v%i.%i",
-         VERSION/100,VERSION%100);
-    }
-    else if (current_mode == pack_tnt) {
-            sprintf (title,
-         "DOOM 2: TNT - Evilution v%i.%i",
-         VERSION/100,VERSION%100);
-    }
-    else {
     switch (gamemode)
     {
         case retail:
-    sprintf (title,
-         "FreeDoom Phase 1 Startup v%i.%i",
-         VERSION/100,VERSION%100);
-    break;
-      case shareware:
-    sprintf (title,
-         "DOOM Shareware Startup v%i.%i",
-         VERSION/100,VERSION%100);
-    break;
-      case registered:
-    sprintf (title,
-         "DOOM Registered Startup v%i.%i",
-         VERSION/100,VERSION%100);
-    break;
-      case commercial:
-    sprintf (title,
-         "FreeDoom Phase 2 v%i.%i",
-         VERSION/100,VERSION%100);
-    break;
-      default:
-    sprintf (title,
-         "Public DOOM - v%i.%i",
-         VERSION/100,VERSION%100);
-    break;
-    }
+        sprintf (title,
+            "FreeDoom Phase 1 v%i.%i",
+            VERSION/100,VERSION%100);
+        break;
+        case commercial:
+        sprintf (title,
+            "FreeDoom Phase 2 v%i.%i",
+            VERSION/100,VERSION%100);
+        break;
+        default:
+        sprintf (title,
+            "Public DOOM - v%i.%i",
+            VERSION/100,VERSION%100);
+        break;
     }
 
     printf ("%s\n",title);
@@ -855,9 +822,9 @@ void D_DoomMain(void)
     // clear screen before game starts
     for(int i=0;i<2;i++)
     {
-        _dc = lockVideo(1);
-        D_memset(_dc->buffer, 0, SCREENWIDTH*SCREENHEIGHT*2);
-        unlockVideo(_dc);
+        _dc = display_get();
+        memset(_dc->buffer, 0, SCREENWIDTH*SCREENHEIGHT*2);
+        display_show(_dc);
     }
 
     D_DoomLoop();  // never returns

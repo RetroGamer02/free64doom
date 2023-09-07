@@ -6,8 +6,6 @@
 #include "doomdef.h"
 #include "w_wad.h"
 
-extern void unlockVideo(surface_t* _dc);
-extern surface_t* lockVideo(int i);
 extern surface_t* _dc;
 
 extern int mus_playing;
@@ -66,7 +64,7 @@ void DoomIsOver(void)
         int y; int x;
         int n = 0;
 
-        _dc = lockVideo(1);
+        _dc = display_get();
         graphics_fill_screen(_dc, cga_pal[4]);
         for (y=0;y<25;y++)
         {
@@ -82,7 +80,7 @@ void DoomIsOver(void)
             }
         }
 
-        unlockVideo(_dc);
+        display_show(_dc);
     }
 
     while (1)

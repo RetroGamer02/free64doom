@@ -49,9 +49,11 @@
 
 #include <libdragon.h>
 
-extern void graphics_draw_line( display_context_t disp, int x0, int y0, int x1, int y1, uint32_t color );
-extern uint32_t palarray[256];
-extern surface_t *_dc;
+extern void graphics_draw_line(surface_t* disp, int x0, int y0, int x1, int y1, uint32_t color);
+
+extern uint32_t*     palarray;
+extern surface_t*    _dc;
+extern void*         bufptr;
 
 // For use if I do walls with outsides/insides
 #define REDS        (256-5*16)
@@ -311,13 +313,6 @@ static boolean stopped = true;
 extern boolean viewactive;
 
 //extern void V_MarkRect(int x, int y, int width, int height);
-
-
-extern int *finesine2; // 10240
-extern int *finetan2; // 4096
-extern angle_t *tantoangle2; // 2049
-
-
 
 // Calculates the slope and slope according to the x-axis of a line
 // segment in map coordinates (with the upright y-axis n' all) so
@@ -893,13 +888,16 @@ void AM_Ticker (void)
     AM_updateLightLev();
 }
 
+// status bar height at bottom of screen
+#define SBARHEIGHT            32
+
 
 //
 // Clear automap frame buffer.
 //
 void AM_clearFB(int color)
 {
-    D_memset((uint16_t *)((uintptr_t)_dc->buffer), 0, SCREENWIDTH*SCREENHEIGHT*2);
+    memset(bufptr, 0, SCREENWIDTH*(SCREENHEIGHT-SBARHEIGHT)*2);
 }
 
 
@@ -1165,8 +1163,8 @@ AM_rotate
   angle_t    a )
 {
     fixed_t tmpx;
-    tmpx = FixedMul(*x,finecosine[a>>ANGLETOFINESHIFT]) - FixedMul(*y,finesine2[a>>ANGLETOFINESHIFT]);
-    *y = FixedMul(*x,finesine2[a>>ANGLETOFINESHIFT]) + FixedMul(*y,finecosine[a>>ANGLETOFINESHIFT]);
+    tmpx = FixedMul(*x,finecosine(a>>ANGLETOFINESHIFT)) - FixedMul(*y,finesine(a>>ANGLETOFINESHIFT));
+    *y = FixedMul(*x,finesine(a>>ANGLETOFINESHIFT)) + FixedMul(*y,finecosine(a>>ANGLETOFINESHIFT));
     *x = tmpx;
 }
 
@@ -1292,7 +1290,7 @@ void AM_drawMarks(void)
             fx = CXMTOF(markpoints[i].x);
             fy = CYMTOF(markpoints[i].y);
             if (fx >= f_x && fx <= f_w - w && fy >= f_y && fy <= f_h - h)
-            V_DrawPatch(fx>>1, fy>>1, FB, marknums[i]);
+            V_DrawPatch(fx>>1, fy>>1, marknums[i]);
         }
     }
 }
