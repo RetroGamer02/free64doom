@@ -429,6 +429,12 @@ void HU_Start(void)
     char*	s;
     const char *gameid = get_GAMEID();
 
+    //Temp Fix for FreeDoom
+    if (gameid == (char*)"FREEDOOM.WAD")
+      gameid = "DOOMU.WAD";
+    else if (gameid == (char*)"FRDOOM2.WAD")
+      gameid = "DOOM2.WAD";
+
     if (headsupactive)
 	HU_Stop();
 

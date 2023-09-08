@@ -621,10 +621,10 @@ extern GameMode_t current_mode;
 //
 char*    doom1wad = "DOOM1.WAD";
 char*    doomwad = "DOOM.WAD";
-char*    doomuwad = "DOOMU.WAD";
+char*    doomuwad = "FREEDOOM.WAD";
 char*    doom2wad = "DOOM2.WAD";
 
-char*    doom2fwad = "DOOM2F.WAD";
+char*    doom2fwad = "FRDOOM2.WAD";
 char*    plutoniawad = "PLUTONIA.WAD";
 char*    tntwad = "TNT.WAD";
 
