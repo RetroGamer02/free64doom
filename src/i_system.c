@@ -50,7 +50,7 @@ volatile uint32_t timekeeping;
 
 // freed up enough space through gc-sections to give 5.5 MB to zone
 // this also allowed me to get screen wipe working again
-#define MB_FOR_ZONE 5
+#define MB_FOR_ZONE 5.5
 #define BYTES_PER_MB 1048576
 const size_t zone_size = MB_FOR_ZONE * BYTES_PER_MB;
 int based_zone = 0;
