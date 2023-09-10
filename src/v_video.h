@@ -68,42 +68,38 @@ V_CopyRect
   int		desty,
   int		destscrn );
 
+
 void
 V_DrawPatch
 ( int		x,
   int		y,
-  int		scrn,
   patch_t*	patch);
 
-#if 0
 void
-V_DrawPatchDirect
+V_DrawPatchBuf
 ( int		x,
   int		y,
-  int		scrn,
-  patch_t*	patch );
-#endif
-#define V_DrawPatchDirect V_DrawPatch
+  patch_t*	patch,
+  uint16_t* buf);
 
 // Draw a linear block of pixels into the view buffer.
 void
 V_DrawBlock
 ( int		x,
   int		y,
-  int		scrn,
   int		width,
   int		height,
-  byte*		src );
+  uint16_t*		src );
+
 
 // Reads a linear block of pixels into the view buffer.
 void
 V_GetBlock
 ( int		x,
   int		y,
-  int		scrn,
   int		width,
   int		height,
-  byte*		dest );
+  uint16_t*		dest );
 
 
 void

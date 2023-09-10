@@ -102,7 +102,7 @@
 #define GOTVISOR    "Got the Night Vision Goggles."
 #define GOTMSPHERE  "Got the Ultra OverdriveSphere!"
 
-#define GOTCLIP     "Picked up a ammo clip."
+#define GOTCLIP     "Picked up an ammo clip."
 #define GOTCLIPBOX  "Picked up a box of ammo."
 #define GOTROCKET   "Picked up a rocket."
 #define GOTROCKBOX  "Picked up a box of rockets."
@@ -114,11 +114,11 @@
 
 #define GOTBFG9000  "You got the SKAG 1337!  Oh, yes."
 #define GOTCHAINGUN "You got the minigun!"
-#define GOTCHAINSAW "A angle grinder!  Find some meat!"
+#define GOTCHAINSAW "An angle grinder!  Find some meat!"
 #define GOTLAUNCHER "You got the missile launcher!"
 #define GOTPLASMA   "You got the polaric energy cannon!"
 #define GOTSHOTGUN  "You got the pump-action shotgun!"
-#define GOTSHOTGUN2 "You got the double-barrel shotgun!"
+#define GOTSHOTGUN2 "You got the double-barreled shotgun!"
 
 //
 // P_Doors.C

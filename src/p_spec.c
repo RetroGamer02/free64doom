@@ -438,13 +438,15 @@ P_FindSectorFromLineTag
 ( line_t*	line,
   int		start )
 {
-    int	i;
-	
-    for (i=start+1;i<numsectors;i++)
-	if (sectors[i].tag == line->tag)
-	    return i;
-    
-    return -1;
+    int    i;
+    for (i = start + 1; i < numsectors; i++)
+    {
+        if (sectors[i].tag == line->tag)
+        {
+            return i;
+        }
+	}
+	return -1;
 }
 
 
@@ -1155,7 +1157,7 @@ void P_UpdateSpecials (void)
 		    break;
 		}
 		S_StartSound((mobj_t *)&buttonlist[i].soundorg,sfx_swtchn);
-		D_memset(&buttonlist[i],0,sizeof(button_t));
+		memset(&buttonlist[i],0,sizeof(button_t));
 	    }
 	}
 	
@@ -1357,7 +1359,7 @@ void P_SpawnSpecials (void)
 	activeplats[i] = NULL;
     
     for (i = 0;i < MAXBUTTONS;i++)
-	D_memset(&buttonlist[i],0,sizeof(button_t));
+	memset(&buttonlist[i],0,sizeof(button_t));
 
     // UNUSED: no horizonal sliders.
     //	P_InitSlidingDoorFrames();

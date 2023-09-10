@@ -18,7 +18,7 @@
 // $Log:$
 //
 // DESCRIPTION:
-//	Game completion, final screen animation.
+//    Game completion, final screen animation.
 //
 //-----------------------------------------------------------------------------
 
@@ -47,46 +47,46 @@ int numwrites = 0;
 
 // Stage of animation:
 //  0 = text, 1 = art screen, 2 = character cast
-int		finalestage;
+int        finalestage;
 
-int		finalecount;
+int        finalecount;
 
-#define	TEXTSPEED	3
-#define	TEXTWAIT	250
+#define    TEXTSPEED    3
+#define    TEXTWAIT    250
 
-char*	e1text = E1TEXT;
-char*	e2text = E2TEXT;
-char*	e3text = E3TEXT;
-char*	e4text = E4TEXT;
+char*    e1text = E1TEXT;
+char*    e2text = E2TEXT;
+char*    e3text = E3TEXT;
+char*    e4text = E4TEXT;
 
-char*	c1text = C1TEXT;
-char*	c2text = C2TEXT;
-char*	c3text = C3TEXT;
-char*	c4text = C4TEXT;
-char*	c5text = C5TEXT;
-char*	c6text = C6TEXT;
+char*    c1text = C1TEXT;
+char*    c2text = C2TEXT;
+char*    c3text = C3TEXT;
+char*    c4text = C4TEXT;
+char*    c5text = C5TEXT;
+char*    c6text = C6TEXT;
 
-char*	p1text = P1TEXT;
-char*	p2text = P2TEXT;
-char*	p3text = P3TEXT;
-char*	p4text = P4TEXT;
-char*	p5text = P5TEXT;
-char*	p6text = P6TEXT;
+char*    p1text = P1TEXT;
+char*    p2text = P2TEXT;
+char*    p3text = P3TEXT;
+char*    p4text = P4TEXT;
+char*    p5text = P5TEXT;
+char*    p6text = P6TEXT;
 
-char*	t1text = T1TEXT;
-char*	t2text = T2TEXT;
-char*	t3text = T3TEXT;
-char*	t4text = T4TEXT;
-char*	t5text = T5TEXT;
-char*	t6text = T6TEXT;
+char*    t1text = T1TEXT;
+char*    t2text = T2TEXT;
+char*    t3text = T3TEXT;
+char*    t4text = T4TEXT;
+char*    t5text = T5TEXT;
+char*    t6text = T6TEXT;
 
-char*	finaletext;
-char*	finaleflat;
+char*    finaletext;
+char*    finaleflat;
 
-void	F_StartCast (void);
-void	F_CastTicker (void);
+void    F_StartCast (void);
+void    F_CastTicker (void);
 boolean F_CastResponder (event_t *ev);
-void	F_CastDrawer (void);
+void    F_CastDrawer (void);
 
 int lastcount = -1;
 
@@ -247,34 +247,32 @@ void F_Ticker (void)
     }
 }
 
-extern uint32_t palarray[256];
-extern surface_t *_dc;
-extern uint16_t *buf16;
-
 //
 // F_TextWrite
 //
 
 #include "hu_stuff.h"
+extern uint32_t*   palarray;
+extern void*       bufptr;
 extern patch_t*    hu_font[HU_FONTSIZE];
        byte*       bgsrc = 0;
 
 static inline void F_bgpart(void) {
-    uint16_t *dest16 = (uint16_t *)((uintptr_t)_dc->buffer);// + ((ytab(SCREENWIDTH >> 4))<<1));
-    int x, y;
-    uint32_t curpix;
-    for (y=0 ; y<SCREENHEIGHT ; y++)
+    uint32_t *dest32 = (uint32_t *)bufptr;
+    bgsrc = W_CacheLumpName (finaleflat , PU_CACHE);
+
+    for (size_t y = 0 ; y < SCREENHEIGHT ; y++)
     {
         int sy = ytab(y);
         int asy = (y&63)<<6;
-        for (x=0;x<64;x++)
+        for (size_t x = 0; x < 64; x+=2)
         {
-            curpix = palarray[bgsrc[asy+x]];
-            *(uint16_t*)(&dest16[(x+sy)]) = curpix;
-            *(uint16_t*)(&dest16[(x+64+sy)]) = curpix;
-            *(uint16_t*)(&dest16[(x+128+sy)]) = curpix;
-            *(uint16_t*)(&dest16[(x+192+sy)]) = curpix;
-            *(uint16_t*)(&dest16[(x+256+sy)]) = curpix;
+            uint32_t curpix = ((palarray[bgsrc[asy+x]]) << 16) | (palarray[bgsrc[asy+x+1]] & 0xFFFF);
+            dest32[(x+sy)>>1] = curpix;
+            dest32[(x+64+sy)>>1] = curpix;
+            dest32[(x+128+sy)>>1] = curpix;
+            dest32[(x+192+sy)>>1] = curpix;
+            dest32[(x+256+sy)>>1] = curpix;
         }
     }
 }
@@ -287,8 +285,6 @@ void F_TextWrite (void)
     int      c;
     int      cx;
     int      cy;
-
-    bgsrc = W_CacheLumpName (finaleflat , PU_CACHE);
 
     // erase the entire screen to a tiled background
     F_bgpart();
@@ -324,7 +320,7 @@ void F_TextWrite (void)
         w = SHORT (hu_font[c]->width);
         if (cx+w > SCREENWIDTH)
             break;
-        V_DrawPatch(cx, cy, 0, hu_font[c]);
+        V_DrawPatch(cx, cy, hu_font[c]);
         cx+=w;
     }
 }
@@ -336,11 +332,11 @@ void F_TextWrite (void)
 //
 typedef struct
 {
-    char		*name;
-    mobjtype_t	type;
+    char*         name;
+    mobjtype_t    type;
 } castinfo_t;
 
-castinfo_t	castorder[] = {
+castinfo_t    castorder[] = {
     {CC_ZOMBIE, MT_POSSESSED},
     {CC_SHOTGUN, MT_SHOTGUY},
     {CC_HEAVY, MT_CHAINGUY},
@@ -362,24 +358,24 @@ castinfo_t	castorder[] = {
     {NULL,0}
 };
 
-int		castnum;
-int		casttics;
-state_t*	caststate;
-boolean		castdeath;
-int		castframes;
-int		castonmelee;
-boolean		castattacking;
+int         castnum;
+int         casttics;
+state_t*    caststate;
+boolean     castdeath;
+int         castframes;
+int         castonmelee;
+boolean     castattacking;
 
 
 //
 // F_StartCast
 //
-extern	gamestate_t     wipegamestate;
+extern    gamestate_t     wipegamestate;
 
 
 void F_StartCast (void)
 {
-    wipegamestate = -1;		// force a screen wipe
+    wipegamestate = -1;        // force a screen wipe
     castnum = 0;
     caststate = &states[mobjinfo[castorder[castnum].type].seestate];
     casttics = caststate->tics;
@@ -397,104 +393,104 @@ void F_StartCast (void)
 //
 void F_CastTicker (void)
 {
-    int		st;
-    int		sfx;
+    int        st;
+    int        sfx;
 
     if (--casttics > 0)
-	return;			// not time to change state yet
+    return;            // not time to change state yet
 
     if (caststate->tics == -1 || caststate->nextstate == S_NULL)
     {
-	// switch from deathstate to next monster
-	castnum++;
-	castdeath = false;
-	if (castorder[castnum].name == NULL)
-	    castnum = 0;
-	if (mobjinfo[castorder[castnum].type].seesound)
-	    S_StartSound (NULL, mobjinfo[castorder[castnum].type].seesound);
-	caststate = &states[mobjinfo[castorder[castnum].type].seestate];
-	castframes = 0;
+    // switch from deathstate to next monster
+    castnum++;
+    castdeath = false;
+    if (castorder[castnum].name == NULL)
+        castnum = 0;
+    if (mobjinfo[castorder[castnum].type].seesound)
+        S_StartSound (NULL, mobjinfo[castorder[castnum].type].seesound);
+    caststate = &states[mobjinfo[castorder[castnum].type].seestate];
+    castframes = 0;
     }
     else
     {
-	// just advance to next state in animation
-	if (caststate == &states[S_PLAY_ATK1])
-	    goto stopattack;	// Oh, gross hack!
-	st = caststate->nextstate;
-	caststate = &states[st];
-	castframes++;
+    // just advance to next state in animation
+    if (caststate == &states[S_PLAY_ATK1])
+        goto stopattack;    // Oh, gross hack!
+    st = caststate->nextstate;
+    caststate = &states[st];
+    castframes++;
 
-	// sound hacks....
-	switch (st)
-	{
-	  case S_PLAY_ATK1:	sfx = sfx_dshtgn; break;
-	  case S_POSS_ATK2:	sfx = sfx_pistol; break;
-	  case S_SPOS_ATK2:	sfx = sfx_shotgn; break;
-	  case S_VILE_ATK2:	sfx = sfx_vilatk; break;
-	  case S_SKEL_FIST2:	sfx = sfx_skeswg; break;
-	  case S_SKEL_FIST4:	sfx = sfx_skepch; break;
-	  case S_SKEL_MISS2:	sfx = sfx_skeatk; break;
-	  case S_FATT_ATK8:
-	  case S_FATT_ATK5:
-	  case S_FATT_ATK2:	sfx = sfx_firsht; break;
-	  case S_CPOS_ATK2:
-	  case S_CPOS_ATK3:
-	  case S_CPOS_ATK4:	sfx = sfx_shotgn; break;
-	  case S_TROO_ATK3:	sfx = sfx_claw; break;
-	  case S_SARG_ATK2:	sfx = sfx_sgtatk; break;
-	  case S_BOSS_ATK2:
-	  case S_BOS2_ATK2:
-	  case S_HEAD_ATK2:	sfx = sfx_firsht; break;
-	  case S_SKULL_ATK2:	sfx = sfx_sklatk; break;
-	  case S_SPID_ATK2:
-	  case S_SPID_ATK3:	sfx = sfx_shotgn; break;
-	  case S_BSPI_ATK2:	sfx = sfx_plasma; break;
-	  case S_CYBER_ATK2:
-	  case S_CYBER_ATK4:
-	  case S_CYBER_ATK6:	sfx = sfx_rlaunc; break;
-	  case S_PAIN_ATK3:	sfx = sfx_sklatk; break;
-	  default: sfx = 0; break;
-	}
+    // sound hacks....
+    switch (st)
+    {
+      case S_PLAY_ATK1:     sfx = sfx_dshtgn; break;
+      case S_POSS_ATK2:     sfx = sfx_pistol; break;
+      case S_SPOS_ATK2:     sfx = sfx_shotgn; break;
+      case S_VILE_ATK2:     sfx = sfx_vilatk; break;
+      case S_SKEL_FIST2:    sfx = sfx_skeswg; break;
+      case S_SKEL_FIST4:    sfx = sfx_skepch; break;
+      case S_SKEL_MISS2:    sfx = sfx_skeatk; break;
+      case S_FATT_ATK8:
+      case S_FATT_ATK5:
+      case S_FATT_ATK2:     sfx = sfx_firsht; break;
+      case S_CPOS_ATK2:
+      case S_CPOS_ATK3:
+      case S_CPOS_ATK4:     sfx = sfx_shotgn; break;
+      case S_TROO_ATK3:     sfx = sfx_claw; break;
+      case S_SARG_ATK2:     sfx = sfx_sgtatk; break;
+      case S_BOSS_ATK2:
+      case S_BOS2_ATK2:
+      case S_HEAD_ATK2:     sfx = sfx_firsht; break;
+      case S_SKULL_ATK2:    sfx = sfx_sklatk; break;
+      case S_SPID_ATK2:
+      case S_SPID_ATK3:     sfx = sfx_shotgn; break;
+      case S_BSPI_ATK2:     sfx = sfx_plasma; break;
+      case S_CYBER_ATK2:
+      case S_CYBER_ATK4:
+      case S_CYBER_ATK6:    sfx = sfx_rlaunc; break;
+      case S_PAIN_ATK3:     sfx = sfx_sklatk; break;
+      default: sfx = 0; break;
+    }
 
-	if (sfx)
-	    S_StartSound (NULL, sfx);
+    if (sfx)
+        S_StartSound (NULL, sfx);
     }
 
     if (castframes == 12)
     {
-	// go into attack frame
-	castattacking = true;
-	if (castonmelee)
-	    caststate=&states[mobjinfo[castorder[castnum].type].meleestate];
-	else
-	    caststate=&states[mobjinfo[castorder[castnum].type].missilestate];
-	castonmelee ^= 1;
-	if (caststate == &states[S_NULL])
-	{
-	    if (castonmelee)
-		caststate=
-		    &states[mobjinfo[castorder[castnum].type].meleestate];
-	    else
-		caststate=
-		    &states[mobjinfo[castorder[castnum].type].missilestate];
-	}
+    // go into attack frame
+    castattacking = true;
+
+    if (castonmelee)
+        caststate = &states[mobjinfo[castorder[castnum].type].meleestate];
+    else
+        caststate = &states[mobjinfo[castorder[castnum].type].missilestate];
+
+    castonmelee ^= 1;
+
+    if (caststate == &states[S_NULL])
+    {
+        if (castonmelee)
+            caststate = &states[mobjinfo[castorder[castnum].type].meleestate];
+        else
+            caststate = &states[mobjinfo[castorder[castnum].type].missilestate];
+    }
     }
 
     if (castattacking)
     {
-	if (castframes == 24
-	    ||	caststate == &states[mobjinfo[castorder[castnum].type].seestate] )
-	{
-	  stopattack:
-	    castattacking = false;
-	    castframes = 0;
-	    caststate = &states[mobjinfo[castorder[castnum].type].seestate];
-	}
+    if (castframes == 24 || caststate == &states[mobjinfo[castorder[castnum].type].seestate])
+    {
+      stopattack:
+        castattacking = false;
+        castframes = 0;
+        caststate = &states[mobjinfo[castorder[castnum].type].seestate];
+    }
     }
 
     casttics = caststate->tics;
     if (casttics == -1)
-	casttics = 15;
+    casttics = 15;
 }
 
 
@@ -505,10 +501,10 @@ void F_CastTicker (void)
 boolean F_CastResponder (event_t* ev)
 {
     if (ev->type != ev_keydown)
-	return false;
+    return false;
 
     if (castdeath)
-	return true;			// already in dying frames
+    return true;            // already in dying frames
 
     // go into death frame
     castdeath = true;
@@ -517,7 +513,7 @@ boolean F_CastResponder (event_t* ev)
     castframes = 0;
     castattacking = false;
     if (mobjinfo[castorder[castnum].type].deathsound)
-	S_StartSound (NULL, mobjinfo[castorder[castnum].type].deathsound);
+    S_StartSound (NULL, mobjinfo[castorder[castnum].type].deathsound);
 
     return true;
 }
@@ -525,11 +521,11 @@ boolean F_CastResponder (event_t* ev)
 
 void F_CastPrint (char* text)
 {
-    char*	ch;
-    int		c;
-    int		cx;
-    int		w;
-    int		width;
+    char*      ch;
+    int        c;
+    int        cx;
+    int        w;
+    int        width;
 
     // find width
     ch = text;
@@ -537,18 +533,18 @@ void F_CastPrint (char* text)
 
     while (ch)
     {
-	c = *ch++;
-	if (!c)
-	    break;
-	c = toupper(c) - HU_FONTSTART;
-	if (c < 0 || c> HU_FONTSIZE)
-	{
-	    width += 4;
-	    continue;
-	}
+    c = *ch++;
+    if (!c)
+        break;
+    c = toupper(c) - HU_FONTSTART;
+    if (c < 0 || c> HU_FONTSIZE)
+    {
+        width += 4;
+        continue;
+    }
 
-	w = SHORT (hu_font[c]->width);
-	width += w;
+    w = SHORT (hu_font[c]->width);
+    width += w;
     }
 
     // draw it
@@ -556,19 +552,19 @@ void F_CastPrint (char* text)
     ch = text;
     while (ch)
     {
-	c = *ch++;
-	if (!c)
-	    break;
-	c = toupper(c) - HU_FONTSTART;
-	if (c < 0 || c> HU_FONTSIZE)
-	{
-	    cx += 4;
-	    continue;
-	}
+    c = *ch++;
+    if (!c)
+        break;
+    c = toupper(c) - HU_FONTSTART;
+    if (c < 0 || c> HU_FONTSIZE)
+    {
+        cx += 4;
+        continue;
+    }
 
-	w = SHORT (hu_font[c]->width);
-	V_DrawPatch(cx, 180, 0, hu_font[c]);
-	cx+=w;
+    w = SHORT (hu_font[c]->width);
+    V_DrawPatch(cx, 180, hu_font[c]);
+    cx+=w;
     }
 }
 
@@ -576,18 +572,18 @@ void F_CastPrint (char* text)
 //
 // F_CastDrawer
 //
-void V_DrawPatchFlipped (int x, int y, int scrn, patch_t *patch);
+void V_DrawPatchFlipped (int x, int y, patch_t *patch);
 
 void F_CastDrawer (void)
 {
-    spritedef_t*	sprdef;
-    spriteframe_t*	sprframe;
-    int			lump;
-    boolean		flip;
-    patch_t*		patch;
+    spritedef_t*      sprdef;
+    spriteframe_t*    sprframe;
+    int               lump;
+    boolean           flip;
+    patch_t*          patch;
 
     // erase the entire screen to a background
-    V_DrawPatch (0,0,0, W_CacheLumpName ("BOSSBACK", PU_CACHE));
+    V_DrawPatch (0,0, W_CacheLumpName ("BOSSBACK", PU_CACHE));
 
     F_CastPrint (castorder[castnum].name);
 
@@ -599,27 +595,22 @@ void F_CastDrawer (void)
 
     patch = W_CacheLumpNum (lump+firstspritelump, PU_CACHE);
     if (flip)
-	V_DrawPatchFlipped (160,170,0,patch);
+    V_DrawPatchFlipped (160,170,patch);
     else
-	V_DrawPatch (160,170,0,patch);
+    V_DrawPatch (160,170,patch);
 }
 
 
 //
 // F_DrawPatchCol
 //
-void
-F_DrawPatchCol
-( int		x,
-  patch_t*	patch,
-  int		col )
+void F_DrawPatchCol (int x, patch_t* patch, int col)
 {
-    column_t*	column;
-    byte*	source;
-//    byte*	desttop;
-    int		count;
-    int		not_count;
-    uint16_t*	dest16;
+    column_t*    column;
+    byte*        source;
+    int          count;
+    uint16_t*    dest;
+    uint16_t*    desttop = (uint16_t *)(bufptr + (x << 1));
 
     column = (column_t *)((byte *)patch + LONG(patch->columnofs[col]));
 
@@ -628,14 +619,13 @@ F_DrawPatchCol
     {
         source = (byte *)column + 3;
         count = column->length;
-        not_count = count;
 
-        dest16 = (uint16_t *)((uintptr_t)_dc->buffer + ((ytab((SCREENWIDTH>>4)+(column->topdelta + not_count)))<<1));
+        dest = (uint16_t *)((uintptr_t)desttop + (ytab(column->topdelta) << 1)); 
 
         while (count--)
         {
-            uint16_t spot = palarray[*source++];
-            dest16[x - ytab(count)] = spot;
+            *dest = palarray[*source++];
+            dest += SCREENWIDTH;
         }
         column = (column_t *)( (byte *)column + column->length + 4 );
     }
@@ -647,13 +637,13 @@ F_DrawPatchCol
 //
 void F_BunnyScroll (void)
 {
-    int		scrolled;
-    int		x;
-    patch_t*	p1;
-    patch_t*	p2;
-    char	name[16];
-    int		stage;
-    static int	laststage;
+    int           scrolled;
+    int           x;
+    patch_t*      p1;
+    patch_t*      p2;
+    char          name[16];
+    int           stage;
+    static int    laststage;
 
     p1 = W_CacheLumpName ("PFUB2", PU_LEVEL);
     p2 = W_CacheLumpName ("PFUB1", PU_LEVEL);
@@ -662,39 +652,38 @@ void F_BunnyScroll (void)
 
     scrolled = 320 - (finalecount-230)/2;
     if (scrolled > 320)
-	scrolled = 320;
+        scrolled = 320;
     if (scrolled < 0)
-	scrolled = 0;
+        scrolled = 0;
 
     for ( x=0 ; x<SCREENWIDTH ; x++)
     {
-	if (x+scrolled < 320)
-	    F_DrawPatchCol (x, p1, x+scrolled);
-	else
-	    F_DrawPatchCol (x, p2, x+scrolled - 320);
+    if (x+scrolled < 320)
+        F_DrawPatchCol (x, p1, x+scrolled);
+    else
+        F_DrawPatchCol (x, p2, x+scrolled - 320);
     }
 
     if (finalecount < 1130)
-	return;
+        return;
     if (finalecount < 1180)
     {
-	V_DrawPatch ((SCREENWIDTH-13*8)/2,
-		     (SCREENHEIGHT-8*8)/2,0, W_CacheLumpName ("END0",PU_CACHE));
-	laststage = 0;
-	return;
+    V_DrawPatch ((SCREENWIDTH-13*8)/2, (SCREENHEIGHT-8*8)/2, W_CacheLumpName ("END0",PU_CACHE));
+    laststage = 0;
+    return;
     }
 
     stage = (finalecount-1180) / 5;
     if (stage > 6)
-	stage = 6;
+    stage = 6;
     if (stage > laststage)
     {
-	S_StartSound (NULL, sfx_pistol);
-	laststage = stage;
+    S_StartSound (NULL, sfx_pistol);
+    laststage = stage;
     }
 
     sprintf (name,"END%i",stage);
-    V_DrawPatch ((SCREENWIDTH-13*8)/2, (SCREENHEIGHT-8*8)/2,0, W_CacheLumpName (name,PU_CACHE));
+    V_DrawPatch ((SCREENWIDTH-13*8)/2, (SCREENHEIGHT-8*8)/2, W_CacheLumpName (name,PU_CACHE));
 }
 
 
@@ -705,36 +694,32 @@ void F_Drawer (void)
 {
     if (finalestage == 2)
     {
-	F_CastDrawer ();
-	return;
+        F_CastDrawer ();
+        return;
     }
 
     if (!finalestage) {
-		F_TextWrite ();
-	}
+        F_TextWrite ();
+    }
     else
     {
-	switch (gameepisode)
-	{
-	  case 1:
-	    if ( gamemode == retail )
-	      V_DrawPatch (0,0,0,
-			 W_CacheLumpName("CREDIT",PU_CACHE));
-	    else
-	      V_DrawPatch (0,0,0,
-			 W_CacheLumpName("HELP2",PU_CACHE));
-	    break;
-	  case 2:
-	    V_DrawPatch(0,0,0,
-			W_CacheLumpName("VICTORY2",PU_CACHE));
-	    break;
-	  case 3:
-	    F_BunnyScroll ();
-	    break;
-	  case 4:
-	    V_DrawPatch (0,0,0,
-			 W_CacheLumpName("ENDPIC",PU_CACHE));
-	    break;
-	}
+        switch (gameepisode)
+        {
+            case 1:
+                if ( gamemode == retail )
+                    V_DrawPatch (0, 0, W_CacheLumpName("CREDIT",PU_CACHE));
+                else
+                    V_DrawPatch (0, 0, W_CacheLumpName("HELP2",PU_CACHE));
+                break;
+            case 2:
+                V_DrawPatch(0, 0, W_CacheLumpName("VICTORY2",PU_CACHE));
+                break;
+            case 3:
+                F_BunnyScroll ();
+                break;
+            case 4:
+                V_DrawPatch (0, 0, W_CacheLumpName("ENDPIC",PU_CACHE));
+                break;
+        }
     }
 }
