@@ -1,70 +1,35 @@
----------------
--64DOOM README-
----------------
+# Free64Doom
 
+(Updated 2023/09/10)
 
-Updated 2023/05/16
+## How to Build
+Setup libdragon (unstable branch): https://github.com/DragonMinded/libdragon/wiki/Installing-libdragon
 
+Create a build directory in repo directory.
 
--------------------------
--git repository contents-
--------------------------
-
-`README.md` is this file
-
-`src` directory contains all 64Doom C source, header files, menu graphics and Makefile used to build 64Doom
-
-`doc` directory contains many text files including
-
-`  ORIGINAL_README.TXT` is the original `README.TXT` from the 1990s DOOM open source release
-  
-`  DOOMLIC.TXT` is the DOOM open source license documentation
-  
-`  CREDITS.TXT` which provides attribution for various components and code contributors
-  
-`  LICENSE_generic-hashtable.TXT`, `README_generic-hashtable.TXT` required attribution for Hashtable implementation used
-  
-`  GPLV3.TXT` is a copy of the GPL V3 License as required
-
---------------
--how to build-
---------------
-Setup libdragon: https://github.com/DragonMinded/libdragon/wiki/Installing-libdragon
-
-Get a copy of a supported version of Doom (Doom shareware, retail, Ultimate Doom, Doom II, Plutonia, TNT).
-
-Export two environment variables:
-
-`IWAD_DIRECTORY` -- the path of the directory that contains your IWAD file
-
-`IWAD_PREFIX` -- the actual IWAD filename prefix (one of `DOOM1`, `DOOM`, `DOOMU`, `DOOM2`, `PLUTONIA`, `TNT`)
+Select the IWAD you wish to use by editing Makefile and setting `$(IWAD)` (either `FREEDOOM1` or `FREEDOOM2`).
 
 And run make.
 
-Result is `$(IWAD_PREFIX).z64` ready to copy to dev cart or run in emulator.
+Result is `$(IWAD).z64` ready to copy to flash cartridge or run in emulator.
 
-Example for building DOOM2 from repo directory, with IWAD files located in your home directory under `IWADS`:
+Example for building FreeDoom Phase 1 from repo directory:
 
-`cd src`
+`mkdir build`
 
-`env IWAD_DIRECTORY="~/IWADS" IWAD_PREFIX="DOOM2" make`
+`IWAD = FREEDOOM1`
 
-resulting in `DOOM2.z64`
+`make`
 
-If you want to build for a different game version, be sure to run make clean first. Environment variables must be set for make clean as well.
+resulting in `FREEDOOM1.z64`.
 
-`env IWAD_DIRECTORY="." IWAD_PREFIX="." make clean`
+## SAVEGAMES
 
-
------------
--SAVEGAMES-
------------
-
-64Doom uses the Controller Pak to save and load your game progress from the Save Game / Load Game menu options.
+Free64Doom uses the Controller Pak to save and load your game progress from the Save Game / Load Game menu options.
 
 One savegame slot is presented, mapped to a single note on the Controller Pak.
 
-The name of the note is the same as the game version (`$IWAD_PREFIX`) you are playing.
+The name of the note is the same as the game version (`$IWAD`) you are playing.
 
 When you save or load a game, you will see a message in the Doom HUD if it is successful:
 
@@ -85,9 +50,7 @@ It is possible that there are rare occasions where this may happen even with an 
 
 If it does, kill some more enemies, pick up some more items, try again. :-)
 
-----------
--CONTROLS-
-----------
+## CONTROLS
 
 D-PAD UP / ANALOG STICK UP :: move forward
 
@@ -116,6 +79,3 @@ A :: shoot
 B :: use (open doors, flip switches)
 
 START :: ESCAPE key
-
-
-Enjoy.

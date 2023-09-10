@@ -1,5 +1,0 @@
-jnmartin84 - Made the doom64 engine
-eightbit - Started the project
-Immorpher - Figured out adding music
-RetroGamer02 - Map/Code Editing
-Xindage - Soon to optimise FreeDoom Phase 1 Episode 2 maps

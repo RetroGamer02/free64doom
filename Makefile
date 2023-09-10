@@ -1,6 +1,4 @@
-# Copy your IWAD to the IWAD_DIRECTORY and select corresponding prefix here
-IWAD_DIRECTORY = iwads
-IWAD_PREFIX = FREEDOOM1
+IWAD = FREEDOOM1
 # Options: FREEDOOM1 FREEDOOM2
 
 ROOTDIR			= $(N64_INST)
@@ -16,7 +14,7 @@ N64_DSOEXTERN = $(ROOTDIR)/bin/n64dso-extern
 N64_DSOMSYM = $(ROOTDIR)/bin/n64dso-msym
 HEADERNAME = header
 LIBS = -ldragon -lc -lm -ldragonsys
-PROG_NAME = $(IWAD_PREFIX)
+PROG_NAME = $(IWAD)
 OPTFLAG = -O3
 
 # function/data sections + gc-sections saves about ~200kb from output binary
@@ -108,8 +106,8 @@ $(PROG_NAME).z64: $(BUILD_DIR)/$(PROG_NAME).elf
 	rm -f $(BUILD_DIR)/$(PROG_NAME).dfs
 	rm -f filesystem/identifier
 	rm -f filesystem/*.wad
-	cp $(IWAD_DIRECTORY)/$(IWAD_PREFIX).WAD filesystem
-	echo $(IWAD_PREFIX).WAD > filesystem/identifier
+	cp iwads/$(IWAD).WAD filesystem
+	echo $(IWAD).WAD > filesystem/identifier
 	$(MKDFSPATH) $(BUILD_DIR)/$(PROG_NAME).dfs ./filesystem/
 	$(N64TOOL) \
         --header $(HEADERPATH)/$(HEADERNAME) --title $(PROG_NAME) --toc --output $(PROG_NAME).z64 $(BUILD_DIR)/$(PROG_NAME).bin --align 8 $(BUILD_DIR)/$(PROG_NAME).sym --align 8 $(BUILD_DIR)/$(PROG_NAME).msym --align 16 $(BUILD_DIR)/$(PROG_NAME).dfs
