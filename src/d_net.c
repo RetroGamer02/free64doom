@@ -95,7 +95,7 @@ int ExpandTics (int low)
     return (maketic&~0xff) + 256 + low;
     }
 #ifdef RANGECHECK
-    IError("ExpandTics: strange value %i at maketic %i", low, maketic);
+    I_Error("ExpandTics: strange value %i at maketic %i", low, maketic);
 #endif
     return 0;
 }
@@ -498,7 +498,7 @@ sprintf (str,"ID%s_%i",idstr,localstage);
 		//printf("sent %s\n", str);
 		packet[0] = strlen(str);
 		packet[1] = 0; packet[2] = 0; packet[3] = 0;
-		D_memcpy(&packet[4], str, strlen(str));
+		memcpy(&packet[4], str, strlen(str));
 		while(!bi_usb_can_wr()) {}
 		//WritePacket (str,strlen(str))
 			bi_usb_wr(packet,DATALENGTH);
@@ -518,7 +518,7 @@ return;
     boolean    gotinfo[MAXNETNODES];
 
     autostart = true;
-    D_memset (gotinfo,0,sizeof(gotinfo));
+    memset (gotinfo,0,sizeof(gotinfo));
 
     if (doomcom->consoleplayer)
     {

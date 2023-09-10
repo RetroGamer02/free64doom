@@ -41,6 +41,12 @@
 // Fineangles in the SCREENWIDTH wide window.
 #define FIELDOFVIEW        2048    
 
+// used https://www.dcode.fr/function-equation-finder
+// parabola / hyperbola using curve fitting
+// 3 multiplies, an add and a subtract
+// vs an uncached memory access
+// this wins
+#define tantoangle(x) ((angle_t)((-47*((x)*(x))) + (359628*(x)) - 3150270))
 
 
 int            viewangleoffset;
@@ -87,29 +93,22 @@ angle_t            clipangle;
 // maps the visible view angles to screen X coordinates,
 // flattening the arc to a flat projection plane.
 // There will be many angles mapped to the same X. 
+//int            c_viewangletox[FINEANGLES/2];
+
 int            viewangletox[FINEANGLES/2];
+//int*           viewangletox;
 
 // The xtoviewangleangle[] table maps a screen pixel
 // to the lowest viewangle that maps back to x ranges
 // from clipangle to -clipangle.
+//angle_t            c_xtoviewangle[SCREENWIDTH+1];
+
 angle_t            xtoviewangle[SCREENWIDTH+1];
+//angle_t*           xtoviewangle;
 
 lighttable_t*        scalelight[LIGHTLEVELS][MAXLIGHTSCALE];
 lighttable_t*        scalelightfixed[MAXLIGHTSCALE];
 lighttable_t*        zlight[LIGHTLEVELS][MAXLIGHTZ];
-
-// UNUSED.
-// The finetangentgent[angle+FINEANGLES/4] table
-// holds the fixed_t tangent values for view angles,
-// ranging from MININT to 0 to MAXINT.
-// fixed_t        finetangent[FINEANGLES/2];
-
-// fixed_t        finesine[5*FINEANGLES/4];
-fixed_t*        finecosine;// = &finesine[FINEANGLES/4];
-extern int *finesine2; // 10240
-extern int *finetan2; // 4096
-extern angle_t *tantoangle2; // 2049
-
 
 void (*colfunc) (int yl, int yh, int x);
 void (*skycolfunc) (int yl, int yh, int x);
@@ -118,7 +117,7 @@ void (*fuzzcolfunc) (int yl, int yh, int x);
 void (*transcolfunc) (int yl, int yh, int x);
 void (*spanfunc) (int x1, int x2, int y);
 
-static const inline int SlopeDiv(uint32_t num, uint32_t den)
+static inline  __attribute__((always_inline)) int SlopeDiv(uint32_t num, uint32_t den)
 {
     uint32_t ans;
 
@@ -253,12 +252,12 @@ R_PointToAngle
             if (x>y)
             {
                 // octant 0
-                return tantoangle2[ SlopeDiv(y,x)];
+                return tantoangle(SlopeDiv(y,x));
             }
             else
             {
                 // octant 1
-                return ANG90-1-tantoangle2[ SlopeDiv(x,y)];
+                return ANG90-1-tantoangle(SlopeDiv(x,y));
             }
         }
         else
@@ -269,12 +268,12 @@ R_PointToAngle
             if (x>y)
             {
                 // octant 8
-                return -tantoangle2[SlopeDiv(y,x)];
+                return -tantoangle(SlopeDiv(y,x));
             }
             else
             {
                 // octant 7
-                return ANG270+tantoangle2[ SlopeDiv(x,y)];
+                return ANG270+tantoangle(SlopeDiv(x,y));
             }
         }
     }
@@ -289,12 +288,12 @@ R_PointToAngle
             if (x>y)
             {
                 // octant 3
-                return ANG180-1-tantoangle2[ SlopeDiv(y,x)];
+                return ANG180-1-tantoangle(SlopeDiv(y,x));
             }
             else
             {
                 // octant 2
-                return ANG90+ tantoangle2[ SlopeDiv(x,y)];
+                return ANG90+ tantoangle(SlopeDiv(x,y));
             }
         }
         else
@@ -305,12 +304,12 @@ R_PointToAngle
             if (x>y)
             {
                 // octant 4
-                return ANG180+tantoangle2[ SlopeDiv(y,x)];
+                return ANG180+tantoangle(SlopeDiv(y,x));
             }
             else
             {
                 // octant 5
-                return ANG270-1-tantoangle2[ SlopeDiv(x,y)];
+                return ANG270-1-tantoangle(SlopeDiv(x,y));
             }
         }
     }
@@ -343,6 +342,7 @@ void R_InitPointToAngle (void)
 }
 
 
+
 //
 // R_ScaleFromGlobalAngle
 // Returns the texture mapping scale
@@ -364,8 +364,8 @@ fixed_t R_ScaleFromGlobalAngle (angle_t visangle)
     angleb = ANG90 + (visangle-rw_normalangle);
 
     // both sines are allways positive
-    sinea = finesine2[(anglea>>ANGLETOFINESHIFT)];
-    sineb = finesine2[(angleb>>ANGLETOFINESHIFT)];
+    sinea = finesine((anglea>>ANGLETOFINESHIFT));
+    sineb = finesine((angleb>>ANGLETOFINESHIFT));
     num = FixedMul(projection, sineb) << detailshift;
     den = FixedMul(rw_distance, sinea);
 
@@ -412,21 +412,24 @@ void R_InitTextureMapping (void)
     //
     // Calc focallength
     //  so FIELDOFVIEW angles covers SCREENWIDTH.
-    focallength = FixedDiv (centerxfrac, finetan2[FINEANGLES/4+FIELDOFVIEW/2]);
+
+    // FixedDiv(centerxfrac, finetangent[3072])
+    // centerxfrac * 65536 / roughly 65536
+    focallength = centerxfrac; //FixedDiv (centerxfrac, finetangentf(FINEANGLES/4+FIELDOFVIEW/2));
 
     for (i=0 ; i<FINEANGLES/2 ; i++)
     {
-        if (finetan2[i] > (FRACUNIT*2))
+        if (finetangentf(i) > (FRACUNIT*2))
         {
             t = -1;
         }
-		else if (finetan2[i] < -(FRACUNIT*2))
+		else if (finetangentf(i) < -(FRACUNIT*2))
         {
             t = viewwidth+1;
         }
         else
         {
-            t = FixedMul (finetan2[i], focallength);
+            t = FixedMul (finetangentf(i), focallength);
             t = (centerxfrac - t+FRACUNIT-1)>>FRACBITS;
 
             if (t < -1)
@@ -454,8 +457,9 @@ void R_InitTextureMapping (void)
     // Take out the fencepost cases from viewangletox.
     for (i=0 ; i<FINEANGLES/2 ; i++)
     {
-        t = FixedMul (finetan2[i], focallength);
-        t = centerx - t;
+        // why was this code still here?
+        //t = FixedMul (finetangent[i], focallength);
+        //t = centerx - t;
 
         if (viewangletox[i] == -1)
             viewangletox[i] = 0;
@@ -599,7 +603,7 @@ void R_ExecuteSetViewSize (void)
 
     for (i=0 ; i<viewwidth ; i++)
     {
-        cosadj = D_abs(finecosine[xtoviewangle[i]>>ANGLETOFINESHIFT]);
+        cosadj = D_abs(finecosine(xtoviewangle[i]>>ANGLETOFINESHIFT));
         distscale[i] = FixedDiv (FRACUNIT,cosadj);
     }
 
@@ -632,9 +636,11 @@ void R_ExecuteSetViewSize (void)
 extern int    detailLevel;
 extern int    screenblocks;
 
+//extern void setup_finetangent_fpconst();
 
 void R_Init (void)
 {
+//    setup_finetangent_fpconst();
     R_InitData ();
     R_InitPointToAngle ();
     R_InitTables ();
@@ -645,12 +651,6 @@ void R_Init (void)
     R_InitLightTables ();
     R_InitSkyMap ();
     R_InitTranslationTables ();
-
-    // performance is equally good if not better when you access the math tables uncached
-    tantoangle2 = (angle_t *)((uintptr_t)tantoangle | 0xA0000000);
-    finesine2 = (int *)((uintptr_t)finesine | 0xA0000000);
-    finetan2 = (int *)((uintptr_t)finetangent | 0xA0000000);
-    finecosine = &finesine2[FINEANGLES/4];
 }
 
 
@@ -699,8 +699,8 @@ void R_SetupFrame (player_t* player)
 
     viewz = player->viewz;
 
-    viewsin = finesine2[viewangle>>ANGLETOFINESHIFT];
-    viewcos = finecosine[viewangle>>ANGLETOFINESHIFT];
+    viewsin = finesine(viewangle>>ANGLETOFINESHIFT);
+    viewcos = finecosine(viewangle>>ANGLETOFINESHIFT);
 
     sscount = 0;
 

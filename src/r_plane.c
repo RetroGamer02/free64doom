@@ -37,7 +37,6 @@
 #include "r_sky.h"
 
 
-extern char errstr[256];
 
 
 planefunction_t floorfunc;
@@ -116,7 +115,6 @@ void R_InitPlanes (void)
 //
 // BASIC PRIMITIVE
 //
-extern uint32_t palarray[256];
 void
 R_MapPlane
 ( int        y,
@@ -154,8 +152,8 @@ R_MapPlane
 
     length = FixedMul (distance,distscale[x1]);
     angle = (viewangle + xtoviewangle[x1])>>ANGLETOFINESHIFT;
-    ds_xfrac = viewx + FixedMul(finecosine[angle], length);
-    ds_yfrac = -viewy - FixedMul(finesine[angle], length);
+    ds_xfrac = viewx + FixedMul(finecosine(angle), length);
+    ds_yfrac = -viewy - FixedMul(finesine(angle), length);
 
     if (fixedcolormap)
         ds_colormap = fixedcolormap;
@@ -200,14 +198,14 @@ void R_ClearPlanes (void)
     lastopening = openings;
 
     // texture calculation
-    D_memset (cachedheight, 0, sizeof(cachedheight));
+    memset (cachedheight, 0, sizeof(cachedheight));
 
     // left to right mapping
     angle = (viewangle-ANG90)>>ANGLETOFINESHIFT;
 
     // scale will be unit scale at SCREENWIDTH/2 distance
-    basexscale = FixedDiv (finecosine[angle],centerxfrac);
-    baseyscale = -FixedDiv (finesine[angle],centerxfrac);
+    basexscale = FixedDiv (finecosine(angle),centerxfrac);
+    baseyscale = -FixedDiv (finesine(angle),centerxfrac);
 }
 
 
@@ -256,7 +254,7 @@ R_FindPlane
     check->minx = SCREENWIDTH;
     check->maxx = -1;
 
-    D_memset (check->top,0xff,sizeof(check->top));
+    memset (check->top,0xff,sizeof(check->top));
 
     return check;
 }
@@ -322,7 +320,7 @@ R_CheckPlane
     pl->minx = start;
     pl->maxx = stop;
 
-    D_memset (pl->top,0xff,sizeof(pl->top));
+    memset (pl->top,0xff,sizeof(pl->top));
 
     return pl;
 }
@@ -371,13 +369,12 @@ void swapvp(visplane_t *v1, visplane_t *v2)
 {
     visplane_t tmpvp;
 
-    D_memcpy(&tmpvp, v1, sizeof(visplane_t));
-    D_memcpy(v1, v2, sizeof(visplane_t));
-    D_memcpy(v2, &tmpvp, sizeof(visplane_t));
+    memcpy(&tmpvp, v1, sizeof(visplane_t));
+    memcpy(v1, v2, sizeof(visplane_t));
+    memcpy(v2, &tmpvp, sizeof(visplane_t));
 }
 #endif
 
-extern uint16_t* buf16;
 extern int* texturewidthmask;
 // needed for texture pegging
 extern fixed_t* textureheight;
